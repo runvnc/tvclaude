@@ -1,0 +1,40 @@
+# Keys typed into tvclaude by demo/record.sh (see recorder.py).
+sleep 7
+key alt-w
+sleep 0.8
+type t                  # Window > Tile
+sleep 1.5
+type Write a short post about Turbo Pascal in turbo.md
+sleep 0.4
+key enter
+sleep 2
+key f6                  # The other window
+sleep 1.2
+type Add a remove(items, index) function to todo.py
+sleep 0.4
+key enter
+sleep 5
+key alt-s               # Session menu
+sleep 1.5
+key esc
+sleep 0.5
+key alt-0               # Session list
+sleep 3
+key esc
+sleep 1
+key alt-o               # Options, then Info
+sleep 1.5
+key right
+sleep 1.5
+key esc
+sleep 0.5
+key esc
+sleep 28
+key alt-0               # Session list again, everything done
+sleep 3
+key esc
+sleep 1
+key f5                  # Zoom and back
+sleep 3
+key f5
+sleep 3
