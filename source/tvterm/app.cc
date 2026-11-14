@@ -61,12 +61,14 @@ static const struct { const char *label; const char *command; } claudeCommands[]
     {"New ~c~onversation", "/clear"},           // Session
     {"C~o~mpact", "/compact"},
     {"Con~t~ext", "/context"},
-    {"~U~sage", "/usage"},
     {"Re~v~iew changes", "/code-review"},
     {"~M~odel...", "/model"},                   // Options
     {"~P~ermissions...", "/permissions"},
     {"~A~gents...", "/agents"},
-    {"~S~ettings...", "/config"},
+    {"~C~onfig...", "/config"},                 // The Settings tabs
+    {"~U~sage", "/usage"},
+    {"S~t~ats", "/stats"},
+    {"Claude ~s~tatus", "/status"},             // Help
 };
 
 static TMenuItem &slashItem(const char *command)
@@ -348,7 +350,6 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             slashItem("/clear") +
             slashItem("/compact") +
             slashItem("/context") +
-            slashItem("/usage") +
             slashItem("/code-review") +
             newLine() +
             *new TMenuItem("New Claude ~s~ession...", cmNewClaude, kbF3, hcNoContext, "F3") +
@@ -356,7 +357,10 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             slashItem("/model") +
             slashItem("/permissions") +
             slashItem("/agents") +
+            newLine() +
             slashItem("/config") +
+            slashItem("/usage") +
+            slashItem("/stats") +
         *new TSubMenu("~W~indow", kbAltW) +
             *new TMenuItem("~T~ile", cmTileCols, kbNoKey) +
             *new TMenuItem("Tile ~r~ows", cmTileRows, kbNoKey) +
@@ -374,7 +378,8 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem("Next workspace", cmWsNext, kbF7, hcNoContext, "F7") +
             *new TMenuItem("Previous workspace", cmWsPrev, kbShiftF7, hcNoContext, "Shift-F7") +
         *new TSubMenu("~H~elp", kbAltH) +
-            *new TMenuItem("~A~bout...", cmAbout, kbNoKey)
+            *new TMenuItem("~A~bout...", cmAbout, kbNoKey) +
+            slashItem("/status")
         );
 }
 
