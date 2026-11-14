@@ -17,6 +17,14 @@ README is in [README.tvterm.md](README.tvterm.md).
   hooks, whether it is working (●), needs you (!), is done (✓) or idle (○).
   The window title shows it, the menu bar counts it, the **Session List**
   (Alt-0) lists every session, and **F8** jumps to the next one that needs you.
+- **Workspaces**: separate desktops of windows, e.g. one per project.
+  Workspace > New workspace names one and can start a Claude session in its
+  folder; F7 / Shift-F7 or the Workspace menu switch between them. Every
+  session keeps running while hidden; the Session List and F8 reach sessions
+  in any workspace, and the menu bar shows the workspace on screen.
+- **Cascade that stays readable**: after Window > Cascade, bringing a window
+  forward re-cascades in the new order, so every title bar stays in view.
+  Moving or resizing a window by hand leaves cascade mode.
 - **New Claude session** (F3) asks for a folder and can continue the last
   conversation there. **New shell** opens a plain terminal window.
 - **Resume** (File > Resume) lists your 9 most recent Claude conversations
@@ -25,7 +33,8 @@ README is in [README.tvterm.md](README.tvterm.md).
 - **Turbo colors inside the windows**: yellow text on dark blue, a matching
   Claude Code theme, and your own prompts drawn black on teal.
 - **The desktop comes back.** Like Turbo Pascal's `TURBO.DSK`, tvclaude
-  saves every window (folder, place, number and Claude conversation) to
+  saves every workspace and window (folder, place, number and Claude
+  conversation) to
   `~/.config/tvclaude/desktop` every few seconds and on exit. Started with
   no folders, it reopens them, each resuming its conversation with
   `claude --resume`.
@@ -39,6 +48,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 | File | New Claude session (F3), Resume ▸, New shell, Change dir, DOS shell, Exit (Alt-X) |
 | Edit | Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), New Claude session |
+| Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
 | Help | About |
 

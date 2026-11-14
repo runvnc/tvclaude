@@ -24,6 +24,12 @@ enum : ushort
     cmAbout,
     cmResumeMore,
     cmResume0 = 2100, // ... cmResume0 + 8: File > Resume entries.
+    cmWsNew = 2200,
+    cmWsRename,
+    cmWsClose,
+    cmWsNext,
+    cmWsPrev,
+    cmWs0 = 2210,     // ... cmWs0 + 8: Workspace > entries.
 };
 
 enum : ushort

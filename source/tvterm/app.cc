@@ -81,6 +81,8 @@ static std::string baseName(const std::string &path)
     return slash == std::string::npos ? p : p.substr(slash + 1);
 }
 
+static std::string clipText(const std::string &s, size_t width);
+
 // ---------------------------------------------------------------------------
 // Exact VGA colors. Turbo Vision's palette names the 16 text-mode colors by
 // index, which each terminal paints from its own palette (often not the DOS
@@ -127,6 +129,8 @@ class SessionIndicator : public TView
 public:
 
     int working {0}, waiting {0}, done {0};
+    std::string workspace;
+    int workspaceCount {1};
 
     SessionIndicator(const TRect &r) noexcept : TView(r)
     {
@@ -149,12 +153,22 @@ public:
         if (done)
             pieces.push_back({"\xE2\x9C\x93 " + std::to_string(done) + " done", ok});
 
+        // The workspace on screen, left; the session counts, right.
+        int left = 1;
+        if (!workspace.empty())
+        {
+            std::string ws = "\xE2\x96\xA0 " + clipText(workspace, 16);  // ■
+            if (workspaceCount > 1)
+                ws += " (" + std::to_string(workspaceCount) + ")";
+            left += b.moveStr(left, ws.c_str(), vgaAttr(0x71)) + 2;
+        }
+
         int width = 0;
         for (auto &p : pieces)
             width += cstrlen(p.text.c_str()) + 2;
         int x = size.x - width;
-        if (x < 0)
-            x = 0;
+        if (x < left)
+            x = left;
         for (auto &p : pieces)
             x += b.moveStr(x, p.text.c_str(), p.attr) + 2;
         writeLine(0, 0, size.x, 1, b);
@@ -261,16 +275,21 @@ public:
         bool opening =
                ev.what == evMouseDown
             || (ev.what == evKeyDown && ( ev.keyDown.keyCode == kbAltF ||
+                                          ev.keyDown.keyCode == kbAltK ||
                                           ev.keyDown.keyCode == kbF10 ))
             || (ev.what == evCommand && ev.message.command == cmMenu);
         if (opening)
             if (auto *app = dynamic_cast<TVTermApp *>(TProgram::application))
+            {
                 app->refreshResumeMenu();
+                app->refreshWorkspaceMenu();
+            }
         TMenuBar::handleEvent(ev);
     }
 };
 
 static const char resumeMenuName[] = "~R~esume";
+static const char workspaceMenuName[] = "Wor~k~space";
 
 TMenuBar *TVTermApp::initMenuBar(TRect r)
 {
@@ -305,6 +324,10 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem("~C~lose", cmClose, kbAltF3, hcNoContext, "Alt-F3") +
             newLine() +
             *new TMenuItem("~G~rab input", cmGrabInput, kbNoKey) +
+        *new TSubMenu(workspaceMenuName, kbAltK) +
+            *new TMenuItem("~N~ew workspace...", cmWsNew, kbNoKey) +
+            *new TMenuItem("Next workspace", cmWsNext, kbF7, hcNoContext, "F7") +
+            *new TMenuItem("Previous workspace", cmWsPrev, kbShiftF7, hcNoContext, "Shift-F7") +
         *new TSubMenu("~H~elp", kbAltH) +
             *new TMenuItem("~A~bout...", cmAbout, kbNoKey)
         );
@@ -347,6 +370,12 @@ TDeskTop *TVTermApp::initDeskTop(TRect r)
 
 void TVTermApp::handleEvent(TEvent &event)
 {
+    if (event.what == evCommand && event.message.command == cmCascade)
+    {
+        cascadeWindows();
+        clearEvent(event);
+        return;
+    }
     TApplication::handleEvent(event);
     bool handled = true;
     switch (event.what)
@@ -367,12 +396,22 @@ void TVTermApp::handleEvent(TEvent &event)
                 case cmChangeDir: changeDir(); break;
                 case cmAbout: about(); break;
                 case cmResumeMore: resumeDialog(); break;
+                case cmWsNew: newWorkspaceDialog(); break;
+                case cmWsRename: renameWorkspace(); break;
+                case cmWsClose: closeWorkspace(); break;
+                case cmWsNext: switchWorkspace((currentWs + 1) % (int) workspaces.size()); break;
+                case cmWsPrev:
+                    switchWorkspace((currentWs + (int) workspaces.size() - 1) % (int) workspaces.size());
+                    break;
                 case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
                 case cmTileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
                 default:
                     if ( event.message.command >= cmResume0 &&
                          event.message.command < cmResume0 + 9 )
                         resume(event.message.command - cmResume0);
+                    else if ( event.message.command >= cmWs0 &&
+                              event.message.command < cmWs0 + 9 )
+                        switchWorkspace(event.message.command - cmWs0);
                     else
                         handled = false;
                     break;
@@ -451,6 +490,7 @@ void TVTermApp::idle()
         lastPollMs = now;
         pollStatuses();
     }
+    checkCascade();
     if (now - lastSaveMs >= 5000)
     {
         lastSaveMs = now;
@@ -480,11 +520,15 @@ void TVTermApp::pollStatuses()
     }
     if ( indicator && ( indicator->working != working ||
                         indicator->waiting != waiting ||
-                        indicator->done != done ) )
+                        indicator->done != done ||
+                        indicator->workspace != workspaceName() ||
+                        indicator->workspaceCount != (int) workspaces.size() ) )
     {
         indicator->working = working;
         indicator->waiting = waiting;
         indicator->done = done;
+        indicator->workspace = workspaceName();
+        indicator->workspaceCount = (int) workspaces.size();
         indicator->drawView();
     }
 }
@@ -493,7 +537,7 @@ short TVTermApp::freeWindowNumber()
 {
     bool used[10] = {};
     for (auto *w : sessionWindows())
-        if (w->number >= 1 && w->number <= 9)
+        if (w->workspace == currentWs && w->number >= 1 && w->number <= 9)
             used[w->number] = true;
     for (short n = 1; n <= 9; ++n)
         if (!used[n])
@@ -532,6 +576,7 @@ TerminalWindow *TVTermApp::newSession(const SessionSpec &aSpec)
     w->isClaude = spec.isClaude;
     w->dir = spec.dir.empty() ? currentDir() : spec.dir;
     w->name = baseName(w->dir);
+    w->workspace = currentWs;
     w->number = freeWindowNumber();
     insertWindow(w);
     return w;
@@ -585,11 +630,11 @@ void TVTermApp::sessionList()
         return;
     }
 
-    TDialog *d = new TDialog(TRect(0, 0, 64, 18), "Session List");
+    TDialog *d = new TDialog(TRect(0, 0, 74, 18), "Session List");
     d->options |= ofCentered;
-    TScrollBar *sb = new TScrollBar(TRect(60, 2, 61, 14));
+    TScrollBar *sb = new TScrollBar(TRect(70, 2, 71, 14));
     d->insert(sb);
-    auto *list = new SessionListViewer(TRect(3, 2, 60, 14), sb);
+    auto *list = new SessionListViewer(TRect(3, 2, 70, 14), sb);
     for (auto *w : windows)
     {
         char num[8];
@@ -601,13 +646,15 @@ void TVTermApp::sessionList()
                         + "  " + w->name;
         if (row.size() < 34)
             row.resize(34, ' ');
-        row += w->isClaude ? statusName(w->status) : "shell";
+        std::string state = w->isClaude ? statusName(w->status) : "shell";
+        state.resize(12, ' ');
+        row += state + clipText(workspaces[w->workspace], 18);
         list->items.push_back(row);
     }
     list->setRange(list->items.size());
     d->insert(list);
-    d->insert(new TButton(TRect(37, 15, 49, 17), "~G~o to", cmOK, bfDefault));
-    d->insert(new TButton(TRect(50, 15, 61, 17), "Cancel", cmCancel, bfNormal));
+    d->insert(new TButton(TRect(47, 15, 59, 17), "~G~o to", cmOK, bfDefault));
+    d->insert(new TButton(TRect(60, 15, 71, 17), "Cancel", cmCancel, bfNormal));
     list->select();
 
     TView *p = validView(d);
@@ -618,7 +665,10 @@ void TVTermApp::sessionList()
     TObject::destroy(p);
 
     if (result == cmOK && chosen >= 0 && (size_t) chosen < windows.size())
+    {
+        switchWorkspace(windows[chosen]->workspace);
         windows[chosen]->select();
+    }
 }
 
 void TVTermApp::nextWaiting()
@@ -629,6 +679,7 @@ void TVTermApp::nextWaiting()
         for (size_t i = windows.size(); i-- > 1;)
             if (windows[i]->status == want)
             {
+                switchWorkspace(windows[i]->workspace);
                 windows[i]->select();
                 return;
             }
@@ -798,7 +849,11 @@ static std::string desktopPath()
 
 void TVTermApp::saveDesktop()
 {
-    std::string out = "# tvclaude desktop: kind\tbounds\tnumber\tfolder\tconversation\n";
+    std::string out = "# tvclaude desktop: kind\tbounds\tnumber\tfolder\tconversation\tworkspace\n";
+    out += "workspaces";
+    for (auto &name : workspaces)
+        out += "\t" + name;
+    out += "\ncurrent\t" + std::to_string(currentWs) + "\n";
     for (auto *w : sessionWindows())
     {
         if (w->isEnded())
@@ -808,7 +863,8 @@ void TVTermApp::saveDesktop()
         char bounds[64];
         snprintf(bounds, sizeof(bounds), "%d %d %d %d", r.a.x, r.a.y, r.b.x, r.b.y);
         out += std::string(w->isClaude ? "claude" : "shell") + "\t" + bounds + "\t" +
-               std::to_string((int) w->number) + "\t" + w->dir + "\t" + conv + "\n";
+               std::to_string((int) w->number) + "\t" + w->dir + "\t" + conv + "\t" +
+               std::to_string(w->workspace) + "\n";
     }
     if (out == lastSavedDesktop)
         return;
@@ -831,7 +887,9 @@ bool TVTermApp::restoreDesktop()
     FILE *f = path.empty() ? nullptr : fopen(path.c_str(), "r");
     if (!f)
         return false;
-    struct Saved { bool isClaude; TRect bounds; short number; std::string dir, conv; };
+    struct Saved { bool isClaude; TRect bounds; short number; std::string dir, conv; int ws {0}; };
+    std::vector<std::string> savedWs;
+    int savedCurrent = 0;
     std::vector<Saved> saved;
     char line[8192];
     while (fgets(line, sizeof(line), f))
@@ -844,6 +902,16 @@ bool TVTermApp::restoreDesktop()
             if (*p == '\t') { fields.push_back(cur); cur.clear(); }
             else cur += *p;
         fields.push_back(cur);
+        if (fields[0] == "workspaces")
+        {
+            savedWs.assign(fields.begin() + 1, fields.end());
+            continue;
+        }
+        if (fields[0] == "current" && fields.size() > 1)
+        {
+            savedCurrent = atoi(fields[1].c_str());
+            continue;
+        }
         if (fields.size() < 5)
             continue;
         Saved s;
@@ -855,11 +923,18 @@ bool TVTermApp::restoreDesktop()
         s.number = (short) atoi(fields[2].c_str());
         s.dir = fields[3];
         s.conv = fields[4];
+        if (fields.size() > 5)
+            s.ws = atoi(fields[5].c_str());
         saved.push_back(std::move(s));
     }
     fclose(f);
     if (saved.empty())
         return false;
+    if (!savedWs.empty())
+        workspaces = savedWs;
+    for (auto &s : saved)
+        if (s.ws < 0 || s.ws >= (int) workspaces.size())
+            s.ws = 0;
 
     // Open back to front, so the saved front window ends up on top.
     TRect desk = deskTop->getExtent();
@@ -870,6 +945,7 @@ bool TVTermApp::restoreDesktop()
         spec.isClaude = s.isClaude;
         spec.dir = s.dir;
         spec.resumeId = s.conv;
+        currentWs = s.ws;
         TerminalWindow *w = newSession(spec);
         if (!w)
             continue;
@@ -877,7 +953,7 @@ bool TVTermApp::restoreDesktop()
         {
             bool taken = false;
             for (auto *o : sessionWindows())
-                if (o != w && o->number == s.number)
+                if (o != w && o->workspace == w->workspace && o->number == s.number)
                     taken = true;
             if (!taken)
             {
@@ -896,5 +972,204 @@ bool TVTermApp::restoreDesktop()
         if (fits)
             w->locate(r);
     }
+    // Show only the workspace that was on screen.
+    int show = (savedCurrent >= 0 && savedCurrent < (int) workspaces.size()) ? savedCurrent : 0;
+    currentWs = -1;
+    switchWorkspace(show);
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces.
+
+void TVTermApp::switchWorkspace(int index)
+{
+    if (index < 0 || index >= (int) workspaces.size() || index == currentWs)
+        return;
+    currentWs = index;
+    cascaded = false;
+    TerminalWindow *front = nullptr;
+    for (auto *w : sessionWindows())   // Front window first.
+    {
+        bool mine = w->workspace == index;
+        if (mine && !(w->state & sfVisible))
+            w->show();
+        else if (!mine && (w->state & sfVisible))
+            w->hide();
+        if (mine && !front)
+            front = w;
+    }
+    if (front)
+        front->select();
+    pollStatuses();
+}
+
+void TVTermApp::refreshWorkspaceMenu()
+{
+    auto *bar = dynamic_cast<TVTermMenuBar *>(menuBar);
+    if (!bar || !bar->getMenu())
+        return;
+    TMenuItem *wsItem = nullptr;
+    for (TMenuItem *i = bar->getMenu()->items; i; i = i->next)
+        if (i->name && strcmp(i->name, workspaceMenuName) == 0)
+            wsItem = i;
+    if (!wsItem)
+        return;
+
+    std::vector<int> counts(workspaces.size(), 0);
+    for (auto *w : sessionWindows())
+        if (w->workspace >= 0 && w->workspace < (int) counts.size())
+            ++counts[w->workspace];
+
+    TMenuItem *head = new TMenuItem("~N~ew workspace...", cmWsNew, kbNoKey);
+    TMenuItem **tail = &head->next;
+    auto add = [&] (TMenuItem *item) { *tail = item; tail = &item->next; };
+    add(new TMenuItem("~R~ename...", cmWsRename, kbNoKey));
+    add(new TMenuItem("~C~lose workspace", cmWsClose, kbNoKey));
+    add(&newLine());
+    add(new TMenuItem("Next workspace", cmWsNext, kbF7, hcNoContext, "F7"));
+    add(new TMenuItem("Previous workspace", cmWsPrev, kbShiftF7, hcNoContext, "Shift-F7"));
+    add(&newLine());
+    for (size_t i = 0; i < workspaces.size() && i < 9; ++i)
+    {
+        std::string text = "~" + std::to_string(i + 1) + "~ " +
+            withoutTildes(clipText(workspaces[i], 28)) +
+            ((int) i == currentWs ? "  \xE2\x97\x84" : "");  // ◄
+        std::string count = std::to_string(counts[i]) + (counts[i] == 1 ? " window" : " windows");
+        add(new TMenuItem(text.c_str(), (ushort) (cmWs0 + i), kbNoKey, hcNoContext, count.c_str()));
+    }
+    delete wsItem->subMenu;
+    wsItem->subMenu = new TMenu(*head);
+}
+
+void TVTermApp::newWorkspaceDialog()
+{
+    TDialog *d = new TDialog(TRect(0, 0, 62, 12), "New Workspace");
+    d->options |= ofCentered;
+    TInputLine *name = new TInputLine(TRect(3, 3, 59, 4), 60);
+    d->insert(name);
+    d->insert(new TLabel(TRect(2, 2, 20, 3), "~N~ame:", name));
+    TInputLine *folder = new TInputLine(TRect(3, 6, 59, 7), PATH_MAX);
+    d->insert(folder);
+    d->insert(new TLabel(TRect(2, 5, 50, 6), "~F~older for a Claude session (optional):", folder));
+    d->insert(new TButton(TRect(37, 9, 47, 11), "O~K~", cmOK, bfDefault));
+    d->insert(new TButton(TRect(49, 9, 59, 11), "Cancel", cmCancel, bfNormal));
+    d->selectNext(False);
+
+    char buf[PATH_MAX] = {};
+    strnzcpy(buf, lastDir.c_str(), sizeof(buf));
+    folder->setData(buf);
+
+    TView *p = validView(d);
+    if (!p)
+        return;
+    ushort result = deskTop->execView(p);
+    std::string wsName = name->data;
+    std::string dir = folder->data;
+    TObject::destroy(p);
+    if (result != cmOK)
+        return;
+
+    auto trim = [] (std::string &s) {
+        while (!s.empty() && s.back() == ' ') s.pop_back();
+        while (!s.empty() && s.front() == ' ') s.erase(s.begin());
+    };
+    trim(wsName);
+    trim(dir);
+    dir = expandHome(dir);
+    std::replace(wsName.begin(), wsName.end(), '\t', ' ');
+    if (wsName.empty())
+        wsName = dir.empty() ? "Workspace " + std::to_string(workspaces.size() + 1)
+                             : baseName(dir);
+    workspaces.push_back(wsName);
+    switchWorkspace((int) workspaces.size() - 1);
+    if (!dir.empty())
+    {
+        lastDir = dir;
+        SessionSpec spec;
+        spec.dir = dir;
+        newSession(spec);
+    }
+}
+
+void TVTermApp::renameWorkspace()
+{
+    char buf[61] = {};
+    strnzcpy(buf, workspaces[currentWs].c_str(), sizeof(buf));
+    if (inputBox("Rename Workspace", "~N~ame:", buf, 60) != cmOK)
+        return;
+    std::string name = buf;
+    std::replace(name.begin(), name.end(), '\t', ' ');
+    while (!name.empty() && name.back() == ' ')
+        name.pop_back();
+    if (!name.empty())
+        workspaces[currentWs] = name;
+    pollStatuses();
+}
+
+void TVTermApp::closeWorkspace()
+{
+    if (workspaces.size() <= 1)
+    {
+        messageBox(mfInformation | mfOKButton, "This is the only workspace.");
+        return;
+    }
+    for (auto *w : sessionWindows())
+        if (w->workspace == currentWs && !w->isEnded())
+        {
+            messageBox(mfInformation | mfOKButton,
+                "Close the windows in \"%s\" first.", workspaces[currentWs].c_str());
+            return;
+        }
+    int gone = currentWs;
+    // Ended windows go with it.
+    for (auto *w : sessionWindows())
+        if (w->workspace == gone)
+            TObject::destroy(w);
+    for (auto *w : sessionWindows())
+        if (w->workspace > gone)
+            --w->workspace;
+    workspaces.erase(workspaces.begin() + gone);
+    currentWs = -1;
+    switchWorkspace(gone > 0 ? gone - 1 : 0);
+}
+
+// ---------------------------------------------------------------------------
+// Cascade that stays cascaded.
+
+void TVTermApp::cascadeWindows()
+{
+    deskTop->cascade(getTileRect());
+    cascadeBounds.clear();
+    for (auto *w : sessionWindows())
+        if (w->state & sfVisible)
+            cascadeBounds.push_back({w, w->getBounds()});
+    cascadeFront = deskTop->current;
+    cascaded = !cascadeBounds.empty();
+}
+
+void TVTermApp::checkCascade()
+{
+    if (!cascaded)
+        return;
+    TView *cur = deskTop->current;
+    if (cur && (cur->state & sfDragging))
+        return;   // Wait for the drag to end.
+
+    auto windows = sessionWindows();
+    size_t visible = 0;
+    for (auto *w : windows)
+        if (w->state & sfVisible)
+            ++visible;
+    // A window moved or resized by hand ends cascade mode.
+    for (auto &[view, bounds] : cascadeBounds)
+        for (auto *w : windows)
+            if (w == view && (w->state & sfVisible) && w->getBounds() != bounds)
+            {
+                cascaded = false;
+                return;
+            }
+    // A window brought forward, opened or closed: cascade again.
+    if (cur != cascadeFront || visible != cascadeBounds.size())
+        cascadeWindows();
 }

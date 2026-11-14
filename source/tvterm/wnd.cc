@@ -20,6 +20,10 @@ const tvterm::TVTermConstants TerminalWindow::appConsts =
 
 void TerminalWindow::handleEvent(TEvent &ev)
 {
+    // Alt-1..9 picks a window of the workspace on screen, not a hidden one.
+    if ( ev.what == evBroadcast && ev.message.command == cmSelectWindowNum &&
+         !(state & sfVisible) )
+        return;
     if ( ev.what == evBroadcast &&
          ev.message.command == cmGetOpenTerms && !isDisconnected() )
         *(size_t *) ev.message.infoPtr += 1;

@@ -49,6 +49,21 @@ struct TVTermApp : public TApplication
     // bar is about to open.
     void refreshResumeMenu();
 
+    // Workspaces: separate desktops of windows, e.g. one per project.
+    // Switching hides one set and shows another; every session keeps running.
+    void refreshWorkspaceMenu();
+    void switchWorkspace(int index);
+    void newWorkspaceDialog();
+    void renameWorkspace();
+    void closeWorkspace();
+    const std::string &workspaceName() const { return workspaces[currentWs]; }
+
+    // Cascade that stays cascaded: bringing a window forward re-cascades in
+    // the new order, so every title bar stays in view. Moving or resizing a
+    // window by hand ends it.
+    void cascadeWindows();
+    void checkCascade();
+
     // The desktop file (~/.config/tvclaude/desktop): every open window, its
     // folder, place and Claude conversation, saved every few seconds and on
     // exit. A start with no folders given reopens it.
@@ -64,6 +79,11 @@ private:
     std::vector<PastSession> resumeEntries;
     std::string lastSavedDesktop;
     long long lastSaveMs {0};
+    std::vector<std::string> workspaces {"Main"};
+    int currentWs {0};
+    bool cascaded {false};
+    TView *cascadeFront {nullptr};
+    std::vector<std::pair<TView *, TRect>> cascadeBounds;
 
     void pollStatuses();
     short freeWindowNumber();

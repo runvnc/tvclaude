@@ -27,6 +27,7 @@ public:
     bool isClaude {false};
     std::string name;
     std::string dir;        // The folder the session started in.
+    int workspace {0};      // Which workspace (desktop) it belongs to.
     SessionStatus status {SessionStatus::None};
 
     // Re-reads the status file; true when it changed (the frame is redrawn).
