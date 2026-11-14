@@ -6,6 +6,7 @@
 #include <tvision/tv.h>
 
 #include "session.h"
+#include "history.h"
 #include <string>
 #include <vector>
 
@@ -41,6 +42,12 @@ struct TVTermApp : public TApplication
     void nextWaiting();
     void changeDir();
     void about();
+    void resume(size_t index);
+    void resumeDialog();
+
+    // Fills File > Resume with the newest past sessions; called as the menu
+    // bar is about to open.
+    void refreshResumeMenu();
 
 private:
 
@@ -48,6 +55,7 @@ private:
     int nextSessionId {1};
     std::string lastDir;
     long long lastPollMs {0};
+    std::vector<PastSession> resumeEntries;
 
     void pollStatuses();
     short freeWindowNumber();

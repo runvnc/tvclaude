@@ -235,7 +235,9 @@ SessionEmulatorFactory::SessionEmulatorFactory(const SessionSpec &spec)
         const std::string &plugin = bundledPluginDir();
         if (!plugin.empty())
             cmd += " --plugin-dir '" + plugin + "'";
-        if (spec.continueLast)
+        if (!spec.resumeId.empty() && spec.resumeId.find('\'') == std::string::npos)
+            cmd += " --resume '" + spec.resumeId + "'";
+        else if (spec.continueLast)
             cmd += " --continue";
         add("TURBO_CMD", cmd);
     }

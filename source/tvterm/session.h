@@ -26,6 +26,7 @@ struct SessionSpec
     bool isClaude {true};
     std::string dir;        // Working folder; empty for the current one.
     bool continueLast {false};
+    std::string resumeId;   // `claude --resume <id>` when not empty.
     int id {0};             // Unique per process; names the status file.
 };
 

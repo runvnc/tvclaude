@@ -19,6 +19,9 @@ README is in [README.tvterm.md](README.tvterm.md).
   (Alt-0) lists every session, and **F8** jumps to the next one that needs you.
 - **New Claude session** (F3) asks for a folder and can continue the last
   conversation there. **New shell** opens a plain terminal window.
+- **Resume** (File > Resume) lists your 9 most recent Claude conversations
+  by title, folder and age, from any project; **More sessions...** lists them
+  all. Each opens in a new window with `claude --resume`, in its folder.
 - **Turbo colors inside the windows**: yellow text on dark blue, a matching
   Claude Code theme, and your own prompts drawn black on teal.
 - **Detach and reattach** with [dtach](https://github.com/crigler/dtach): run
@@ -28,7 +31,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 
 | Menu | Items |
 | --- | --- |
-| File | New Claude session (F3), New shell, Change dir, DOS shell, Exit (Alt-X) |
+| File | New Claude session (F3), Resume ▸, New shell, Change dir, DOS shell, Exit (Alt-X) |
 | Edit | Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), New Claude session |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |

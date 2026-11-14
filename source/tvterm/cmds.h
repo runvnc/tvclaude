@@ -22,6 +22,8 @@ enum : ushort
     cmSessionList,
     cmNextWaiting,
     cmAbout,
+    cmResumeMore,
+    cmResume0 = 2100, // ... cmResume0 + 8: File > Resume entries.
 };
 
 enum : ushort

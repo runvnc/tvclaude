@@ -27,6 +27,7 @@
 #include "desk.h"
 #include "wnd.h"
 #include "apputil.h"
+#include "history.h"
 #include <tvterm/termctrl.h>
 #include <tvterm/vtermemu.h>
 
@@ -245,12 +246,39 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     redraw();
 }
 
+// A menu bar that refreshes File > Resume just before it opens.
+class TVTermMenuBar : public TMenuBar
+{
+public:
+
+    using TMenuBar::TMenuBar;
+
+    TMenu *getMenu() const { return menu; }
+
+    void handleEvent(TEvent &ev) override
+    {
+        bool opening =
+               ev.what == evMouseDown
+            || (ev.what == evKeyDown && ( ev.keyDown.keyCode == kbAltF ||
+                                          ev.keyDown.keyCode == kbF10 ))
+            || (ev.what == evCommand && ev.message.command == cmMenu);
+        if (opening)
+            if (auto *app = dynamic_cast<TVTermApp *>(TProgram::application))
+                app->refreshResumeMenu();
+        TMenuBar::handleEvent(ev);
+    }
+};
+
+static const char resumeMenuName[] = "~R~esume";
+
 TMenuBar *TVTermApp::initMenuBar(TRect r)
 {
     r.b.y = r.a.y + 1;
-    return new TMenuBar(r,
+    return new TVTermMenuBar(r,
         *new TSubMenu("~F~ile", kbAltF) +
             *new TMenuItem("~N~ew Claude session...", cmNewClaude, kbF3, hcNoContext, "F3") +
+            *new TMenuItem(resumeMenuName, kbNoKey,
+                new TMenu(*new TMenuItem("~M~ore sessions...", cmResumeMore, kbNoKey))) +
             *new TMenuItem("New ~s~hell", cmNewShell, kbNoKey) +
             newLine() +
             *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
@@ -337,10 +365,15 @@ void TVTermApp::handleEvent(TEvent &event)
                 case cmNextWaiting: nextWaiting(); break;
                 case cmChangeDir: changeDir(); break;
                 case cmAbout: about(); break;
+                case cmResumeMore: resumeDialog(); break;
                 case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
                 case cmTileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
                 default:
-                    handled = false;
+                    if ( event.message.command >= cmResume0 &&
+                         event.message.command < cmResume0 + 9 )
+                        resume(event.message.command - cmResume0);
+                    else
+                        handled = false;
                     break;
             }
             break;
@@ -601,4 +634,132 @@ void TVTermApp::about()
         "\003Turbo Vision Claude\n\n"
         "\003Claude Code sessions in Turbo Vision windows.\n"
         "\003Built on tvterm by magiblot.");
+}
+
+// ---------------------------------------------------------------------------
+// Resume: past Claude Code sessions, as `claude --resume` lists them.
+
+static std::string clipText(const std::string &s, size_t width)
+{
+    // Clip by display columns, keeping UTF-8 sequences whole.
+    std::string out;
+    size_t cols = 0;
+    for (size_t i = 0; i < s.size() && cols < width; ++cols)
+    {
+        size_t len = 1;
+        unsigned char c = s[i];
+        if (c >= 0xF0) len = 4; else if (c >= 0xE0) len = 3; else if (c >= 0xC0) len = 2;
+        out.append(s, i, len);
+        i += len;
+    }
+    if (cols == width && out.size() < s.size())
+    {
+        // Leave room for an ellipsis.
+        while (!out.empty() && (out.back() & 0xC0) == 0x80) out.pop_back();
+        if (!out.empty()) out.pop_back();
+        out += "\xE2\x80\xA6";
+    }
+    return out;
+}
+
+static std::string withoutTildes(std::string s)
+{
+    // '~' marks a hotkey in Turbo Vision menu text.
+    std::replace(s.begin(), s.end(), '~', '-');
+    return s;
+}
+
+void TVTermApp::refreshResumeMenu()
+{
+    auto *bar = dynamic_cast<TVTermMenuBar *>(menuBar);
+    if (!bar || !bar->getMenu() || !bar->getMenu()->items)
+        return;
+    TMenuItem *file = bar->getMenu()->items;
+    if (!file->subMenu)
+        return;
+    TMenuItem *resumeItem = nullptr;
+    for (TMenuItem *i = file->subMenu->items; i; i = i->next)
+        if (i->name && strcmp(i->name, resumeMenuName) == 0)
+            resumeItem = i;
+    if (!resumeItem)
+        return;
+
+    auto all = listPastSessions();
+    resumeEntries.assign(all.begin(), all.begin() + std::min<size_t>(9, all.size()));
+
+    TMenuItem *head = nullptr, **tail = &head;
+    for (size_t i = 0; i < resumeEntries.size(); ++i)
+    {
+        const auto &s = resumeEntries[i];
+        std::string text = "~" + std::to_string(i + 1) + "~ " +
+            withoutTildes(clipText(s.title, 34)) + "  (" + withoutTildes(clipText(baseName(s.cwd), 16)) + ")";
+        *tail = new TMenuItem(text.c_str(), (ushort) (cmResume0 + i), kbNoKey,
+                              hcNoContext, ageText(s.modified).c_str());
+        tail = &(*tail)->next;
+    }
+    if (head)
+    {
+        *tail = &newLine();
+        tail = &(*tail)->next;
+    }
+    *tail = new TMenuItem("~M~ore sessions...", cmResumeMore, kbNoKey);
+
+    delete resumeItem->subMenu;
+    resumeItem->subMenu = new TMenu(*head);
+}
+
+void TVTermApp::resume(size_t index)
+{
+    if (index >= resumeEntries.size())
+        return;
+    const PastSession &s = resumeEntries[index];
+    SessionSpec spec;
+    spec.dir = s.cwd;
+    spec.resumeId = s.id;
+    newSession(spec);
+}
+
+void TVTermApp::resumeDialog()
+{
+    auto all = listPastSessions();
+    if (all.empty())
+    {
+        messageBox(mfInformation | mfOKButton, "No past Claude sessions found.");
+        return;
+    }
+
+    TDialog *d = new TDialog(TRect(0, 0, 78, 20), "Resume Session");
+    d->options |= ofCentered;
+    TScrollBar *sb = new TScrollBar(TRect(74, 3, 75, 16));
+    d->insert(sb);
+    auto *list = new SessionListViewer(TRect(3, 3, 74, 16), sb);
+    for (const auto &s : all)
+    {
+        std::string age = ageText(s.modified);
+        age.resize(8, ' ');
+        std::string folder = clipText(baseName(s.cwd), 16);
+        list->items.push_back(age + folder + std::string(17 - std::min<size_t>(16, cstrlen(folder.c_str())), ' ')
+                              + clipText(s.title, 44));
+    }
+    list->setRange(list->items.size());
+    d->insert(list);
+    d->insert(new TStaticText(TRect(3, 2, 74, 3), "When    Folder           Title"));
+    d->insert(new TButton(TRect(50, 17, 62, 19), "~R~esume", cmOK, bfDefault));
+    d->insert(new TButton(TRect(63, 17, 75, 19), "Cancel", cmCancel, bfNormal));
+    list->select();
+
+    TView *p = validView(d);
+    if (!p)
+        return;
+    ushort result = deskTop->execView(p);
+    short chosen = list->focused;
+    TObject::destroy(p);
+
+    if (result == cmOK && chosen >= 0 && (size_t) chosen < all.size())
+    {
+        SessionSpec spec;
+        spec.dir = all[chosen].cwd;
+        spec.resumeId = all[chosen].id;
+        newSession(spec);
+    }
 }
