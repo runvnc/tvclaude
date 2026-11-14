@@ -61,3 +61,7 @@ compile_commands.json
 !plugin/**/
 !plugin/.claude-plugin/
 !plugin/.claude-plugin/**
+
+# tvclaude: the README demo and the scripts that record it
+!demo/
+!demo/**/
