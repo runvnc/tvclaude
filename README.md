@@ -4,6 +4,8 @@ Claude Code sessions in Turbo Vision windows: a blue DOS-style desktop with a
 menu bar, numbered overlapping windows and a status line, in the spirit of
 Turbo Pascal and Turbo C++.
 
+![Two Claude Code sessions working side by side in tvclaude](demo/demo.gif)
+
 tvclaude is a fork of [tvterm](https://github.com/magiblot/tvterm) by
 magiblot, a terminal emulator built on the modern
 [Turbo Vision](https://github.com/magiblot/tvision) port. The original tvterm

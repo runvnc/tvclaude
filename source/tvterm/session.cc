@@ -278,6 +278,10 @@ static std::string hookSettings()
     // restoring the desktop later), then report idle.
     std::string sessionStart =
         R"({"hooks":[{"type":"command","command":"cat > \"$TURBO_STATUS_FILE.start\"; printf idle > \"$TURBO_STATUS_FILE\""}]})";
+    // Notification: only a permission prompt or a question dialog needs the
+    // person; Claude also notifies when merely idle for a while.
+    std::string notification =
+        R"({"matcher":"permission_prompt|elicitation_dialog","hooks":[{"type":"command","command":"printf waiting > \"$TURBO_STATUS_FILE\""}]})";
     // Stop: keep the turn's end info too; its "cwd" is the folder Claude is
     // in now, which follows a `cd` (the window is named after it).
     std::string stop =
@@ -287,7 +291,7 @@ static std::string hookSettings()
         "\"UserPromptSubmit\":[" + hook("working") + "]," +
         "\"PreToolUse\":[" + preTool + "]," +
         "\"PostToolUse\":[" + hook("working") + "]," +
-        "\"Notification\":[" + hook("waiting") + "]," +
+        "\"Notification\":[" + notification + "]," +
         "\"Stop\":[" + stop + "]," +
         "\"SessionEnd\":[" + hook("ended") + "]" +
         "}}";
