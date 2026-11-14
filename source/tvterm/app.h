@@ -71,7 +71,7 @@ struct TVTermApp : public TApplication
     // The last arrangement picked from the Window menu. A new or resumed
     // session is laid out the same way, so it does not hide the others.
     enum class Layout { None, Cascade, TileCols, TileRows };
-    Layout layout {Layout::None};
+    Layout layout {Layout::Cascade};   // Until one is picked or restored.
     bool restoring {false};   // Opening saved windows: keep their places.
     void arrange(Layout how);
     // Tiled: closing a window tiles the rest again, filling its place.
