@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <ctype.h>
 
 const char *statusGlyph(SessionStatus s) noexcept
 {
@@ -66,6 +67,32 @@ SessionStatus readStatus(int id)
     if (!strncmp(buf, "idle", 4))    return SessionStatus::Idle;
     if (!strncmp(buf, "ended", 5))   return SessionStatus::Ended;
     return SessionStatus::None;
+}
+
+std::string readConversationId(int id)
+{
+    FILE *f = fopen((statusFile(id) + ".start").c_str(), "r");
+    if (!f)
+        return {};
+    char buf[8192];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    const char *p = strstr(buf, "\"session_id\"");
+    if (!p)
+        return {};
+    p = strchr(p + 12, ':');
+    if (!p || !(p = strchr(p, '"')))
+        return {};
+    const char *end = strchr(++p, '"');
+    if (!end)
+        return {};
+    std::string sid(p, end);
+    // A conversation id is a UUID; refuse anything that is not.
+    for (char c : sid)
+        if (!isxdigit((unsigned char) c) && c != '-')
+            return {};
+    return sid;
 }
 
 void cleanupStatusDir()
@@ -205,8 +232,12 @@ static std::string hookSettings()
     // any other tool means Claude is working again (after a permission).
     std::string preTool =
         R"({"hooks":[{"type":"command","command":"if grep -q AskUserQuestion; then printf waiting; else printf working; fi > \"$TURBO_STATUS_FILE\""}]})";
+    // SessionStart: keep Claude's start info (it names the conversation, for
+    // restoring the desktop later), then report idle.
+    std::string sessionStart =
+        R"({"hooks":[{"type":"command","command":"cat > \"$TURBO_STATUS_FILE.start\"; printf idle > \"$TURBO_STATUS_FILE\""}]})";
     return std::string("{\"theme\":\"custom:tvclaude\",\"hooks\":{") +
-        "\"SessionStart\":[" + hook("idle") + "]," +
+        "\"SessionStart\":[" + sessionStart + "]," +
         "\"UserPromptSubmit\":[" + hook("working") + "]," +
         "\"PreToolUse\":[" + preTool + "]," +
         "\"PostToolUse\":[" + hook("working") + "]," +

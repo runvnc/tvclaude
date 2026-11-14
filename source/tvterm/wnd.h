@@ -26,10 +26,13 @@ public:
     int sessionId {0};
     bool isClaude {false};
     std::string name;
+    std::string dir;        // The folder the session started in.
     SessionStatus status {SessionStatus::None};
 
     // Re-reads the status file; true when it changed (the frame is redrawn).
     bool refreshStatus();
+
+    bool isEnded() const noexcept { return isDisconnected(); }
 
 private:
 

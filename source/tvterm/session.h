@@ -56,6 +56,10 @@ SessionStatus readStatus(int id);
 // or out of date. Sessions select it with --settings.
 void installClaudeTheme();
 
+// The id of the Claude conversation session `id` is running (from its
+// SessionStart hook), for `claude --resume`; empty when unknown.
+std::string readConversationId(int id);
+
 // Removes the status files of this process.
 void cleanupStatusDir();
 

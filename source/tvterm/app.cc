@@ -19,6 +19,7 @@
 #define Uses_TScrollBar
 #define Uses_TStaticText
 #define Uses_TDrawBuffer
+#define Uses_TFrame
 #define Uses_MsgBox
 #include <tvision/tv.h>
 
@@ -227,7 +228,7 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     }
 
     lastDir = currentDir();
-    if (dirs.empty())
+    if (dirs.empty() && !restoreDesktop())
     {
         SessionSpec spec;
         newSession(spec);
@@ -416,11 +417,15 @@ Boolean TVTermApp::valid(ushort command)
             auto *format = (count == 1)
                 ? "There is %zu open session window.\nDo you want to quit anyway?"
                 : "There are %zu open session windows.\nDo you want to quit anyway?";
-            return messageBox(
+            bool quit = messageBox(
                 mfConfirmation | mfYesButton | mfNoButton,
                 format, count
             ) == cmYes;
+            if (quit)
+                saveDesktop();
+            return quit;
         }
+        saveDesktop();
         return True;
     }
     return TApplication::valid(command);
@@ -445,6 +450,11 @@ void TVTermApp::idle()
     {
         lastPollMs = now;
         pollStatuses();
+    }
+    if (now - lastSaveMs >= 5000)
+    {
+        lastSaveMs = now;
+        saveDesktop();
     }
 }
 
@@ -496,7 +506,7 @@ static void onTermError(const char *reason)
     messageBox(mfError | mfOKButton, "Cannot create terminal: %s.", reason);
 };
 
-void TVTermApp::newSession(const SessionSpec &aSpec)
+TerminalWindow *TVTermApp::newSession(const SessionSpec &aSpec)
 {
     using namespace tvterm;
     SessionSpec spec = aSpec;
@@ -507,7 +517,7 @@ void TVTermApp::newSession(const SessionSpec &aSpec)
         if (stat(spec.dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))
         {
             messageBox(mfError | mfOKButton, "No such folder:\n%s", spec.dir.c_str());
-            return;
+            return nullptr;
         }
     }
 
@@ -516,13 +526,15 @@ void TVTermApp::newSession(const SessionSpec &aSpec)
     auto *termCtrl = TerminalController::create( TerminalWindow::viewSize(r),
                                                  factory, onTermError );
     if (!termCtrl)
-        return;
+        return nullptr;
     auto *w = new TerminalWindow(r, *termCtrl);
     w->sessionId = spec.id;
     w->isClaude = spec.isClaude;
-    w->name = baseName(spec.dir.empty() ? currentDir() : spec.dir);
+    w->dir = spec.dir.empty() ? currentDir() : spec.dir;
+    w->name = baseName(w->dir);
     w->number = freeWindowNumber();
     insertWindow(w);
+    return w;
 }
 
 void TVTermApp::newClaudeDialog()
@@ -762,4 +774,127 @@ void TVTermApp::resumeDialog()
         spec.resumeId = all[chosen].id;
         newSession(spec);
     }
+}
+
+// ---------------------------------------------------------------------------
+// The desktop file, as Turbo Pascal kept TURBO.DSK.
+//
+// One line per window, front window first, tab-separated:
+//   claude|shell  ax ay bx by  number  folder  conversation-id
+
+static std::string desktopPath()
+{
+    std::string dir;
+    if (const char *xdg = getenv("XDG_CONFIG_HOME"); xdg && *xdg)
+        dir = xdg;
+    else if (const char *home = getenv("HOME"))
+        dir = std::string(home) + "/.config";
+    else
+        return {};
+    dir += "/tvclaude";
+    mkdir(dir.c_str(), 0700);
+    return dir + "/desktop";
+}
+
+void TVTermApp::saveDesktop()
+{
+    std::string out = "# tvclaude desktop: kind\tbounds\tnumber\tfolder\tconversation\n";
+    for (auto *w : sessionWindows())
+    {
+        if (w->isEnded())
+            continue;
+        TRect r = w->getBounds();
+        std::string conv = w->isClaude ? readConversationId(w->sessionId) : "";
+        char bounds[64];
+        snprintf(bounds, sizeof(bounds), "%d %d %d %d", r.a.x, r.a.y, r.b.x, r.b.y);
+        out += std::string(w->isClaude ? "claude" : "shell") + "\t" + bounds + "\t" +
+               std::to_string((int) w->number) + "\t" + w->dir + "\t" + conv + "\n";
+    }
+    if (out == lastSavedDesktop)
+        return;
+    std::string path = desktopPath();
+    if (path.empty())
+        return;
+    std::string tmp = path + ".tmp";
+    if (FILE *f = fopen(tmp.c_str(), "w"))
+    {
+        bool ok = fputs(out.c_str(), f) >= 0;
+        ok = (fclose(f) == 0) && ok;
+        if (ok && rename(tmp.c_str(), path.c_str()) == 0)
+            lastSavedDesktop = out;
+    }
+}
+
+bool TVTermApp::restoreDesktop()
+{
+    std::string path = desktopPath();
+    FILE *f = path.empty() ? nullptr : fopen(path.c_str(), "r");
+    if (!f)
+        return false;
+    struct Saved { bool isClaude; TRect bounds; short number; std::string dir, conv; };
+    std::vector<Saved> saved;
+    char line[8192];
+    while (fgets(line, sizeof(line), f))
+    {
+        if (line[0] == '#')
+            continue;
+        std::vector<std::string> fields;
+        std::string cur;
+        for (char *p = line; *p && *p != '\n'; ++p)
+            if (*p == '\t') { fields.push_back(cur); cur.clear(); }
+            else cur += *p;
+        fields.push_back(cur);
+        if (fields.size() < 5)
+            continue;
+        Saved s;
+        s.isClaude = fields[0] == "claude";
+        int ax, ay, bx, by;
+        if (sscanf(fields[1].c_str(), "%d %d %d %d", &ax, &ay, &bx, &by) != 4)
+            continue;
+        s.bounds = TRect(ax, ay, bx, by);
+        s.number = (short) atoi(fields[2].c_str());
+        s.dir = fields[3];
+        s.conv = fields[4];
+        saved.push_back(std::move(s));
+    }
+    fclose(f);
+    if (saved.empty())
+        return false;
+
+    // Open back to front, so the saved front window ends up on top.
+    TRect desk = deskTop->getExtent();
+    for (size_t i = saved.size(); i-- > 0;)
+    {
+        const Saved &s = saved[i];
+        SessionSpec spec;
+        spec.isClaude = s.isClaude;
+        spec.dir = s.dir;
+        spec.resumeId = s.conv;
+        TerminalWindow *w = newSession(spec);
+        if (!w)
+            continue;
+        if (s.number >= 1 && s.number <= 9)
+        {
+            bool taken = false;
+            for (auto *o : sessionWindows())
+                if (o != w && o->number == s.number)
+                    taken = true;
+            if (!taken)
+            {
+                w->number = s.number;
+                if (w->frame)
+                    w->frame->drawView();
+            }
+        }
+        // Keep the saved place when it still fits the screen.
+        TRect r = s.bounds;
+        TPoint minSize, maxSize;
+        w->sizeLimits(minSize, maxSize);
+        bool fits = r.a.x >= -1 && r.a.y >= 0 && r.b.x <= desk.b.x + 1 &&
+                    r.b.y <= desk.b.y + 1 && r.b.x - r.a.x >= minSize.x &&
+                    r.b.y - r.a.y >= minSize.y;
+        if (fits)
+            w->locate(r);
+    }
+    return true;
 }

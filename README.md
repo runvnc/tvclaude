@@ -24,6 +24,11 @@ README is in [README.tvterm.md](README.tvterm.md).
   all. Each opens in a new window with `claude --resume`, in its folder.
 - **Turbo colors inside the windows**: yellow text on dark blue, a matching
   Claude Code theme, and your own prompts drawn black on teal.
+- **The desktop comes back.** Like Turbo Pascal's `TURBO.DSK`, tvclaude
+  saves every window (folder, place, number and Claude conversation) to
+  `~/.config/tvclaude/desktop` every few seconds and on exit. Started with
+  no folders, it reopens them, each resuming its conversation with
+  `claude --resume`.
 - **Detach and reattach** with [dtach](https://github.com/crigler/dtach): run
   the desktop under dtach, close the terminal, and every session keeps running.
 

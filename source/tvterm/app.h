@@ -36,7 +36,7 @@ struct TVTermApp : public TApplication
 
     // Command handlers
 
-    void newSession(const SessionSpec &spec);
+    TerminalWindow *newSession(const SessionSpec &spec);
     void newClaudeDialog();
     void sessionList();
     void nextWaiting();
@@ -49,6 +49,12 @@ struct TVTermApp : public TApplication
     // bar is about to open.
     void refreshResumeMenu();
 
+    // The desktop file (~/.config/tvclaude/desktop): every open window, its
+    // folder, place and Claude conversation, saved every few seconds and on
+    // exit. A start with no folders given reopens it.
+    void saveDesktop();
+    bool restoreDesktop();
+
 private:
 
     SessionIndicator *indicator {nullptr};
@@ -56,6 +62,8 @@ private:
     std::string lastDir;
     long long lastPollMs {0};
     std::vector<PastSession> resumeEntries;
+    std::string lastSavedDesktop;
+    long long lastSaveMs {0};
 
     void pollStatuses();
     short freeWindowNumber();
