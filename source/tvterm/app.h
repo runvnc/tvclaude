@@ -74,6 +74,10 @@ struct TVTermApp : public TApplication
     Layout layout {Layout::None};
     bool restoring {false};   // Opening saved windows: keep their places.
     void arrange(Layout how);
+    // Tiled: closing a window tiles the rest again, filling its place.
+    void checkTile();
+    int tiledWs {-1};
+    size_t tiledCount {0};
 
     // The desktop file (~/.config/tvclaude/desktop): every open window, its
     // folder, place and Claude conversation, saved every few seconds and on

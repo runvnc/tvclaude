@@ -555,6 +555,7 @@ void TVTermApp::idle()
         pollStatuses();
     }
     checkCascade();
+    checkTile();
     // The Enter of a command typed by the Claude menu goes separately, so
     // Claude does not take the whole command for a paste.
     if (pendingEnterSession && now >= pendingEnterAt)
@@ -1305,6 +1306,19 @@ void TVTermApp::arrange(Layout how)
         case Layout::TileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
         case Layout::None: break;
     }
+}
+
+void TVTermApp::checkTile()
+{
+    size_t count = 0;
+    for (auto *w : sessionWindows())
+        if (w->workspace == currentWs)
+            ++count;
+    bool tiled = layout == Layout::TileCols || layout == Layout::TileRows;
+    if (tiled && tiledWs == currentWs && count < tiledCount && count > 0)
+        arrange(layout);
+    tiledWs = currentWs;
+    tiledCount = count;
 }
 
 void TVTermApp::checkCascade()

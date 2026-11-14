@@ -35,7 +35,8 @@ README is in [README.tvterm.md](README.tvterm.md).
   Moving or resizing a window by hand leaves cascade mode.
 - **New windows follow your layout**: a new or resumed session is tiled or
   cascaded in with the others, whichever you picked last, instead of
-  covering them. The choice is remembered between runs.
+  covering them. When tiled, closing a window tiles the rest again to fill
+  its place. The choice is remembered between runs.
 - **New Claude session** (F3) asks for a folder and can continue the last
   conversation there. **New shell** opens a plain terminal window.
 - **Resume** (File > Resume) lists your 9 most recent Claude conversations
