@@ -67,6 +67,9 @@ struct TVTermApp : public TApplication
     // window by hand ends it.
     void cascadeWindows();
     void checkCascade();
+    // Picks cascade mode back up for windows still where Cascade put them,
+    // as after a restart or a switch of workspace.
+    void resumeCascade();
 
     // The last arrangement picked from the Window menu. A new or resumed
     // session is laid out the same way, so it does not hide the others.

@@ -505,9 +505,8 @@ std::vector<TerminalWindow *> TVTermApp::sessionWindows()
         if (auto *w = dynamic_cast<TerminalWindow *>(p))
             ((std::vector<TerminalWindow *> *) arg)->push_back(w);
     };
+    // forEach walks from the front of the Z order to the back.
     deskTop->forEach(collect, &list);
-    // forEach walks from the back of the Z order; list the front window first.
-    std::reverse(list.begin(), list.end());
     return list;
 }
 
@@ -1094,6 +1093,7 @@ void TVTermApp::switchWorkspace(int index)
     }
     if (front)
         front->select();
+    resumeCascade();
     pollStatuses();
 }
 
@@ -1319,6 +1319,35 @@ void TVTermApp::checkTile()
         arrange(layout);
     tiledWs = currentWs;
     tiledCount = count;
+}
+
+void TVTermApp::resumeCascade()
+{
+    if (layout != Layout::Cascade)
+        return;
+    // TDeskTop::cascade puts the front window furthest in, one step a
+    // window: the k-th from the front at (n-1-k, n-1-k) from the corner.
+    std::vector<TerminalWindow *> visible;
+    for (auto *w : sessionWindows())   // Front window first.
+        if (w->state & sfVisible)
+            visible.push_back(w);
+    if (visible.empty())
+        return;
+    TRect r = getTileRect();
+    int n = (int) visible.size();
+    for (int k = 0; k < n; ++k)
+    {
+        TRect want = r;
+        want.a.x += n - 1 - k;
+        want.a.y += n - 1 - k;
+        if (visible[k]->getBounds() != want)
+            return;
+    }
+    cascadeBounds.clear();
+    for (auto *w : visible)
+        cascadeBounds.push_back({w, w->getBounds()});
+    cascadeFront = deskTop->current;
+    cascaded = true;
 }
 
 void TVTermApp::checkCascade()
