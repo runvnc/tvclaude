@@ -64,7 +64,6 @@ static const struct { const char *label; const char *command; } claudeCommands[]
     {"Re~v~iew changes", "/code-review"},
     {"~M~odel...", "/model"},                   // Options
     {"~P~ermissions...", "/permissions"},
-    {"~A~gents...", "/agents"},
     {"~C~onfig...", "/config"},
     {"~U~sage", "/usage"},                      // Info
     {"S~t~ats", "/stats"},
@@ -356,7 +355,6 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
         *new TSubMenu("~O~ptions", kbAltO) +
             slashItem("/model") +
             slashItem("/permissions") +
-            slashItem("/agents") +
             newLine() +
             slashItem("/config") +
         *new TSubMenu("~I~nfo", kbAltI) +
