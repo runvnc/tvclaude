@@ -68,6 +68,13 @@ struct TVTermApp : public TApplication
     void cascadeWindows();
     void checkCascade();
 
+    // The last arrangement picked from the Window menu. A new or resumed
+    // session is laid out the same way, so it does not hide the others.
+    enum class Layout { None, Cascade, TileCols, TileRows };
+    Layout layout {Layout::None};
+    bool restoring {false};   // Opening saved windows: keep their places.
+    void arrange(Layout how);
+
     // The desktop file (~/.config/tvclaude/desktop): every open window, its
     // folder, place and Claude conversation, saved every few seconds and on
     // exit. A start with no folders given reopens it.

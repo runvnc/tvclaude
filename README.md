@@ -33,6 +33,9 @@ README is in [README.tvterm.md](README.tvterm.md).
 - **Cascade that stays readable**: after Window > Cascade, bringing a window
   forward re-cascades in the new order, so every title bar stays in view.
   Moving or resizing a window by hand leaves cascade mode.
+- **New windows follow your layout**: a new or resumed session is tiled or
+  cascaded in with the others, whichever you picked last, instead of
+  covering them. The choice is remembered between runs.
 - **New Claude session** (F3) asks for a folder and can continue the last
   conversation there. **New shell** opens a plain terminal window.
 - **Resume** (File > Resume) lists your 9 most recent Claude conversations

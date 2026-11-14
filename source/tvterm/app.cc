@@ -271,6 +271,7 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     }
 
     lastDir = currentDir();
+    restoring = true;
     if (dirs.empty() && !restoreDesktop())
     {
         SessionSpec spec;
@@ -282,8 +283,9 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
         spec.dir = expandHome(d);
         newSession(spec);
     }
+    restoring = false;
     if (dirs.size() > 1)
-        getDeskTop()->tileVertical(getTileRect());
+        arrange(Layout::TileCols);
 
     // Views first drawn while the base class was being built used its
     // palette; draw everything again with the exact VGA one.
@@ -419,11 +421,22 @@ TDeskTop *TVTermApp::initDeskTop(TRect r)
 
 void TVTermApp::handleEvent(TEvent &event)
 {
-    if (event.what == evCommand && event.message.command == cmCascade)
+    if (event.what == evCommand)
     {
-        cascadeWindows();
-        clearEvent(event);
-        return;
+        Layout how = Layout::None;
+        switch (event.message.command)
+        {
+            case cmCascade: how = Layout::Cascade; break;
+            case cmTile:
+            case cmTileCols: how = Layout::TileCols; break;
+            case cmTileRows: how = Layout::TileRows; break;
+        }
+        if (how != Layout::None)
+        {
+            arrange(how);
+            clearEvent(event);
+            return;
+        }
     }
     TApplication::handleEvent(event);
     bool handled = true;
@@ -453,8 +466,6 @@ void TVTermApp::handleEvent(TEvent &event)
                 case cmWsPrev:
                     switchWorkspace((currentWs + (int) workspaces.size() - 1) % (int) workspaces.size());
                     break;
-                case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
-                case cmTileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
                 default:
                     if ( event.message.command >= cmResume0 &&
                          event.message.command < cmResume0 + 9 )
@@ -647,6 +658,8 @@ TerminalWindow *TVTermApp::newSession(const SessionSpec &aSpec)
     w->workspace = currentWs;
     w->number = freeWindowNumber();
     insertWindow(w);
+    if (!restoring && layout != Layout::None)
+        arrange(layout);
     return w;
 }
 
@@ -921,6 +934,8 @@ void TVTermApp::saveDesktop()
     for (auto &name : workspaces)
         out += "\t" + name;
     out += "\ncurrent\t" + std::to_string(currentWs) + "\n";
+    static const char *layoutNames[] = {"none", "cascade", "tile", "tilerows"};
+    out += std::string("layout\t") + layoutNames[(int) layout] + "\n";
     for (auto *w : sessionWindows())
     {
         if (w->isEnded())
@@ -972,6 +987,13 @@ bool TVTermApp::restoreDesktop()
         if (fields[0] == "workspaces")
         {
             savedWs.assign(fields.begin() + 1, fields.end());
+            continue;
+        }
+        if (fields[0] == "layout" && fields.size() > 1)
+        {
+            const std::string &v = fields[1];
+            layout = v == "cascade" ? Layout::Cascade : v == "tile" ? Layout::TileCols :
+                     v == "tilerows" ? Layout::TileRows : Layout::None;
             continue;
         }
         if (fields[0] == "current" && fields.size() > 1)
@@ -1271,6 +1293,18 @@ void TVTermApp::cascadeWindows()
             cascadeBounds.push_back({w, w->getBounds()});
     cascadeFront = deskTop->current;
     cascaded = !cascadeBounds.empty();
+}
+
+void TVTermApp::arrange(Layout how)
+{
+    layout = how;
+    switch (how)
+    {
+        case Layout::Cascade: cascadeWindows(); break;
+        case Layout::TileCols: getDeskTop()->tileVertical(getTileRect()); break;
+        case Layout::TileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
+        case Layout::None: break;
+    }
 }
 
 void TVTermApp::checkCascade()
