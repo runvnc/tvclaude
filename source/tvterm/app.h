@@ -28,6 +28,7 @@ struct TVTermApp : public TApplication
     Boolean valid(ushort command) override;
     void idle() override;
     void shutDown() override;
+    TPalette &getPalette() const override;
 
     size_t getOpenTermCount();
     std::vector<TerminalWindow *> sessionWindows();

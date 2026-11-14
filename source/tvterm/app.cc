@@ -80,6 +80,44 @@ static std::string baseName(const std::string &path)
 }
 
 // ---------------------------------------------------------------------------
+// Exact VGA colors. Turbo Vision's palette names the 16 text-mode colors by
+// index, which each terminal paints from its own palette (often not the DOS
+// one). Converting them to RGB makes the desktop look the same everywhere.
+
+static TColorRGB vgaColor(int i)
+{
+    static const TColorRGB vga[16] =
+    {
+        {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
+        {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
+        {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
+        {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF},
+    };
+    return vga[i & 0xF];
+}
+
+// A text-mode attribute byte (background in the high nibble) as exact RGB.
+static TColorAttr vgaAttr(uchar bios)
+{
+    return TColorAttr(vgaColor(bios & 0xF), vgaColor(bios >> 4));
+}
+
+TPalette &TVTermApp::getPalette() const
+{
+    if (appPalette != apColor)
+        return TApplication::getPalette();
+    static TPalette rgb = [] {
+        static const char bios[] = cpAppColor;
+        enum { n = sizeof(bios) - 1 };
+        static TColorAttr attrs[n];
+        for (int i = 0; i < n; ++i)
+            attrs[i] = vgaAttr((uchar) bios[i]);
+        return TPalette(attrs, (ushort) n);
+    }();
+    return rgb;
+}
+
+// ---------------------------------------------------------------------------
 // The session counter at the right end of the menu bar.
 
 class SessionIndicator : public TView
@@ -96,7 +134,7 @@ public:
     void draw() override
     {
         // The menu bar's colors: black on gray, the alarm in red.
-        const TColorAttr normal = 0x70, alarm = 0x74, ok = 0x72;
+        const TColorAttr normal = vgaAttr(0x70), alarm = vgaAttr(0x74), ok = vgaAttr(0x72);
         TDrawBuffer b;
         b.moveChar(0, ' ', normal, size.x);
 
@@ -201,6 +239,10 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     }
     if (dirs.size() > 1)
         getDeskTop()->tileVertical(getTileRect());
+
+    // Views first drawn while the base class was being built used its
+    // palette; draw everything again with the exact VGA one.
+    redraw();
 }
 
 TMenuBar *TVTermApp::initMenuBar(TRect r)
