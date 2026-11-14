@@ -158,12 +158,16 @@ namespace vtermemu
         return {c.rgb.red, c.rgb.green, c.rgb.blue};
     }
 
+    // Colors for cells that use the terminal's default foreground and
+    // background (see setDefaultColors). Unset, the host terminal's own.
+    static TColor defaultFg, defaultBg;
+
     static TColorAttr convAttr(const VTermScreenCell &cell)
     {
         auto &vt_fg = cell.fg,
              &vt_bg = cell.bg;
         auto &vt_attr = cell.attrs;
-        TColor fg, bg;
+        TColor fg = defaultFg, bg = defaultBg;
 
         if (!VTERM_COLOR_IS_DEFAULT_FG(&vt_fg))
         {
@@ -236,6 +240,12 @@ namespace vtermemu
     }
 
 } // namespace vtermemu
+
+void setDefaultColors(TColor fg, TColor bg) noexcept
+{
+    vtermemu::defaultFg = fg;
+    vtermemu::defaultBg = bg;
+}
 
 TerminalEmulator &VTermEmulatorFactory::create(TPoint size, Writer &clientDataWriter) noexcept
 {

@@ -17,6 +17,11 @@ enum : ushort
     cmGetOpenTerms,
     cmCopySelection,
     cmCancelSelection,
+    cmNewClaude,
+    cmNewShell,
+    cmSessionList,
+    cmNextWaiting,
+    cmAbout,
 };
 
 enum : ushort

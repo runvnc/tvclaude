@@ -3,6 +3,8 @@
 
 #include <tvterm/termwnd.h>
 #include <tvterm/consts.h>
+#include "session.h"
+#include <string>
 
 class TerminalWindow : public tvterm::BasicTerminalWindow
 {
@@ -18,8 +20,20 @@ public:
     void sizeLimits(TPoint &min, TPoint &max) override;
     void changeBounds(const TRect &bounds) override;
     void zoom() override;
+    const char *getTitle(short maxSize) override;
+
+    // The session this window runs (see session.h).
+    int sessionId {0};
+    bool isClaude {false};
+    std::string name;
+    SessionStatus status {SessionStatus::None};
+
+    // Re-reads the status file; true when it changed (the frame is redrawn).
+    bool refreshStatus();
 
 private:
+
+    std::string titleBuf;
 
     TRect getMaxBounds();
 };

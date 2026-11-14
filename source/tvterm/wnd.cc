@@ -2,6 +2,7 @@
 #include "cmds.h"
 
 #define Uses_TEvent
+#define Uses_TFrame
 #include <tvision/tv.h>
 
 const tvterm::TVTermConstants TerminalWindow::appConsts =
@@ -79,4 +80,41 @@ TRect TerminalWindow::getMaxBounds()
     TRect r(0, 0, maxSize.x, maxSize.y);
     r.move(-1, 0);
     return r;
+}
+
+const char *TerminalWindow::getTitle(short maxSize)
+{
+    const char *term = Super::getTitle(maxSize);
+    titleBuf.clear();
+    if (isClaude)
+    {
+        titleBuf += statusGlyph(status);
+        titleBuf += ' ';
+    }
+    titleBuf += name.empty() ? "Terminal" : name;
+    if (isClaude && status != SessionStatus::None)
+    {
+        titleBuf += " [";
+        titleBuf += statusName(status);
+        titleBuf += ']';
+    }
+    if (term && *term)
+    {
+        titleBuf += " - ";
+        titleBuf += term;
+    }
+    return titleBuf.c_str();
+}
+
+bool TerminalWindow::refreshStatus()
+{
+    if (!isClaude)
+        return false;
+    SessionStatus s = isDisconnected() ? SessionStatus::Ended : readStatus(sessionId);
+    if (s == status)
+        return false;
+    status = s;
+    if (frame)
+        frame->drawView();
+    return true;
 }

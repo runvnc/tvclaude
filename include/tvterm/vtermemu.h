@@ -11,6 +11,10 @@
 namespace tvterm
 {
 
+// The colors drawn for cells that use the terminal's default foreground and
+// background. By default, those of the host terminal.
+void setDefaultColors(TColor fg, TColor bg) noexcept;
+
 class VTermEmulatorFactory final : public TerminalEmulatorFactory
 {
 public:

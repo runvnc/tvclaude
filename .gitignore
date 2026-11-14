@@ -55,3 +55,9 @@ CMakeScripts
 Makefile
 cmake_install.cmake
 compile_commands.json
+
+# tvclaude: the bundled Claude Code plugin
+!plugin/
+!plugin/**/
+!plugin/.claude-plugin/
+!plugin/.claude-plugin/**

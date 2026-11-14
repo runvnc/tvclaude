@@ -51,23 +51,23 @@ install(EXPORT tvterm-config
 )
 install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/include/tvterm" DESTINATION include)
 
-# Target 'tvterm'
+# Target 'tvclaude'
 
 if (TVTERM_BUILD_APP)
     file(GLOB_RECURSE TVTERM_SRC "${CMAKE_CURRENT_LIST_DIR}/source/tvterm/*.cc")
-    add_executable(tvterm ${TVTERM_SRC})
-    tvterm_set_warnings(tvterm)
-    target_link_libraries(tvterm PRIVATE
+    add_executable(tvclaude ${TVTERM_SRC})
+    tvterm_set_warnings(tvclaude)
+    target_link_libraries(tvclaude PRIVATE
         tvterm-core
     )
-    install(TARGETS tvterm RUNTIME DESTINATION bin)
+    install(TARGETS tvclaude RUNTIME DESTINATION bin)
 endif()
 
 # Build optimization
 
 if (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
     if (TVTERM_OPTIMIZE_BUILD)
-        foreach (t tvterm tvterm-core)
+        foreach (t tvclaude tvterm-core)
             set_target_properties(${t} PROPERTIES UNITY_BUILD ON)
             target_precompile_headers(${t} PRIVATE
                 "${CMAKE_CURRENT_LIST_DIR}/include/pch.h"

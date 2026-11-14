@@ -12,6 +12,8 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 #if __has_include(<pty.h>)
 #   include <pty.h>
@@ -46,7 +48,24 @@ bool createPty( PtyDescriptor &ptyDescriptor, TPoint size,
         for (const auto &envVar : customEnvironment)
             setenv(envVar.name, envVar.value, 1);
 
+        // turbovision: a session may name its own folder and command.
+        if (const char *cwd = getenv("TURBO_CWD"))
+            if (*cwd && chdir(cwd) != 0)
+                fprintf(stderr, "Cannot enter '%s': %s\r\n", cwd, strerror(errno));
+        unsetenv("TURBO_CWD");
+
         char *shell = getenv("SHELL");
+        if (const char *cmd = getenv("TURBO_CMD"))
+        {
+            if (*cmd)
+            {
+                // Always POSIX sh, so the command's quoting is predictable
+                // whatever the user's login shell is.
+                char *runner = (char *) "/bin/sh";
+                char *args[] = {runner, (char *) "-c", (char *) cmd, nullptr};
+                execvp(runner, args);
+            }
+        }
         char *args[] = {shell, nullptr};
         execvp(shell, args);
 

@@ -1,62 +1,82 @@
-# tvterm
+# tvclaude
 
-A terminal emulator that runs in your terminal. Powered by Turbo Vision.
+Claude Code sessions in Turbo Vision windows: a blue DOS-style desktop with a
+menu bar, numbered overlapping windows and a status line, in the spirit of
+Turbo Pascal and Turbo C++.
 
-![htop, turbo and notcurses-demo running in tvterm](https://user-images.githubusercontent.com/20713561/137407902-27538f99-dc0e-47a8-9bf2-0705733d8a8c.png)
+tvclaude is a fork of [tvterm](https://github.com/magiblot/tvterm) by
+magiblot, a terminal emulator built on the modern
+[Turbo Vision](https://github.com/magiblot/tvision) port. The original tvterm
+README is in [README.tvterm.md](README.tvterm.md).
 
-`tvterm` is an experimental terminal emulator widget and application based on the [Turbo Vision](https://github.com/magiblot/tvision) framework. It was created for the purpose of demonstrating new features in Turbo Vision such as 24-bit color support.
+## Features
 
-`tvterm` relies on Paul Evan's [libvterm](http://www.leonerd.org.uk/code/libvterm/) terminal emulator, also used by [Neovim](https://github.com/neovim/libvterm) and [Emacs](https://github.com/akermu/emacs-libvterm).
+- **Several Claude sessions at once**, each in its own window. Tile, cascade,
+  zoom (F5), next (F6), close (Alt-F3), and Alt-1…9 to jump to a window.
+- **Session status at a glance.** Each session reports, through Claude Code
+  hooks, whether it is working (●), needs you (!), is done (✓) or idle (○).
+  The window title shows it, the menu bar counts it, the **Session List**
+  (Alt-0) lists every session, and **F8** jumps to the next one that needs you.
+- **New Claude session** (F3) asks for a folder and can continue the last
+  conversation there. **New shell** opens a plain terminal window.
+- **Turbo colors inside the windows**: yellow text on dark blue, a matching
+  Claude Code theme, and your own prompts drawn black on teal.
+- **Detach and reattach** with [dtach](https://github.com/crigler/dtach): run
+  the desktop under dtach, close the terminal, and every session keeps running.
 
-Additionally, `tvterm` supports both Unix and Windows (Windows 10 1809 or later).
+## Menus
 
-The original location of this project is https://github.com/magiblot/tvterm.
+| Menu | Items |
+| --- | --- |
+| File | New Claude session (F3), New shell, Change dir, DOS shell, Exit (Alt-X) |
+| Edit | Select text, Paste |
+| Session | Session list (Alt-0), Next needing you (F8), New Claude session |
+| Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
+| Help | About |
 
-# Building
+F10 opens the menu bar. The desktop keeps these keys for itself; every other
+key goes to the session in the front window.
 
-First of all, you should clone this repository along its submodules with the `--recursive` option of `git clone` (or run `git submodule init && git submodule update` if you have already cloned it).
-
-Then, make sure the following dependencies are installed:
-
-* CMake.
-* A compiler supporting C++14.
-* `libvterm`:
-    * If you initialized the submodules, you can build `libvterm` as part of `tvterm`. Perl is needed for building `libvterm`.
-    * Otherwise, a system-provided `libvterm` (e.g. `libvterm-dev` in Ubuntu) can be used if enabling the CMake option `-DTVTERM_USE_SYSTEM_LIBVTERM=ON`.
-* [Turbo Vision](https://github.com/magiblot/tvision#build-environment)'s dependencies:
-    * `libncursesw` (Unix only) (e.g. `libncursesw5-dev` in Ubuntu).
-    * `libgpm` (optional, Linux only) (e.g. `libgpm-dev` in Ubuntu).
-* Turbo Vision itself:
-    * If you initialized the submodules, you can build Turbo Vision as part of `tvterm`.
-    * Otherwise, clone [Turbo Vision](https://github.com/magiblot/tvision) separately and follow its [build](https://github.com/magiblot/tvision#build-environment) and [install](https://github.com/magiblot/tvision#build-cmake) instructions. Make sure you don't use a version of Turbo Vision older than the one required by `tvterm` (specified in the [`tvision` submodule](https://github.com/magiblot/tvterm/tree/master/deps)). When building `tvterm`, enable the CMake option `-DTVTERM_USE_SYSTEM_TVISION=ON`.
-
-`tvterm` can be built with the following commands:
+## Building
 
 ```sh
-cmake . -B ./build -DCMAKE_BUILD_TYPE=Release && # Could also be 'Debug', 'MinSizeRel' or 'RelWithDebInfo'.
+git clone --recursive https://github.com/runvnc/tvclaude.git
+cd tvclaude
+cmake . -B ./build -DCMAKE_BUILD_TYPE=Release
 cmake --build ./build
 ```
 
-CMake versions older than 3.13 may not support the `-B` option. You can try the following instead:
+Requirements: CMake, a C++14 compiler, `libncursesw`, optionally `libgpm`
+(Linux), Perl (for the bundled libvterm), and
+[Claude Code](https://code.claude.com) on your `PATH`.
+
+## Running
 
 ```sh
-mkdir -p build; cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release &&
-cmake --build .
+./build/tvclaude                 # one Claude session in the current folder
+./build/tvclaude ~/a ~/b ~/c     # one session per folder, tiled
 ```
 
-# Features
+To keep sessions running when the terminal closes:
 
-This project is still WIP. Some features it may achieve at some point are:
+```sh
+dtach -A "$XDG_RUNTIME_DIR/tvclaude.sock" -r winch -z ./build/tvclaude
+```
 
-- [x] UTF-8 support.
-- [x] fullwidth and zero-width character support.
-- [x] 24-bit color support.
-- [x] Windows support.
-- [x] Scrollback.
-- [x] Text selection.
-- [ ] Find text.
-- [ ] Send signal to child process.
-- [ ] Text reflow on resize.
-- [ ] Having other terminal emulator implementations to choose from.
-- [ ] Better dependency management.
+Run the same command again to reattach.
+
+## How it works
+
+- Each session runs `claude --settings '<json>' --plugin-dir plugin/`. The
+  settings select the `tvclaude` theme and add hooks that write the session's
+  state to a file under `$XDG_RUNTIME_DIR`; tvclaude polls those files.
+  Nothing in your own Claude Code settings changes.
+- On start, tvclaude writes the theme to `~/.claude/themes/tvclaude.json`
+  (Claude Code reads themes only from there).
+- `plugin/` is a small Claude Code plugin that draws your prompts black on
+  teal while running inside tvclaude.
+- Sessions see `TURBOVISION=1` in their environment.
+
+## License
+
+MIT, as tvterm. See [COPYRIGHT](COPYRIGHT).
