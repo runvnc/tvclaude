@@ -89,27 +89,38 @@ Requirements: CMake, a C++14 compiler, `libncursesw`, optionally `libgpm`
 ## Running
 
 ```sh
-./build/tvclaude                 # one Claude session in the current folder
+./build/tvclaude                 # the saved desktop, or one session here
 ./build/tvclaude ~/a ~/b ~/c     # one session per folder, tiled
 ```
 
-To keep sessions running when the terminal closes:
+**Keeping sessions running.** With [dtach](https://github.com/crigler/dtach)
+installed (`pacman -S dtach`, `apt install dtach`, `brew install dtach`),
+tvclaude starts itself under it. Closing the terminal, pressing `Ctrl-\`, or
+File > Detach then only detaches: every session keeps running, and running
+`tvclaude` again brings the desktop back (folders given then are ignored).
+Exit (Alt-X) with sessions open asks whether to keep them running or quit
+them all, and can remember the answer (Options > On exit). `--no-dtach` runs
+tvclaude directly.
 
-```sh
-dtach -A "$XDG_RUNTIME_DIR/tvclaude.sock" -r winch -z ./build/tvclaude
+While tvclaude runs, starting it again reattaches rather than starting a new
+build, so after rebuilding, quit for real first. Help > About shows the build
+number (the commit count), commit and build date.
+
+**A window of its own.** tvclaude draws exact DOS colors itself, but a
+translucent or blurred terminal background shows through around it. A
+launcher that opens an opaque [foot](https://codeberg.org/dnkl/foot) window
+for it, here as a fish function:
+
+```fish
+function turbo
+    foot -o colors-dark.alpha=1.0 -o colors-dark.blur=no \
+        -o colors-dark.background=0000aa -o main.pad=0x0 \
+        --working-directory=$PWD ~/tvclaude/build/tvclaude $argv &
+    disown
+end
 ```
 
-Closing the terminal, pressing `Ctrl-\`, or File > Detach then only
-detaches: every session keeps running, and the same command reattaches.
-Under dtach, Exit (Alt-X) with sessions open asks whether to keep them
-running or quit them all, and can remember the answer (change it under
-Options > On exit). While tvclaude runs, the dtach command reattaches to it
-rather than starting a new build, so after rebuilding, quit for real first.
-Install dtach with your package manager
-(`pacman -S dtach`, `apt install dtach`, `brew install dtach`).
-
-Help > About shows the build number (the commit count), commit and build
-date, so you can tell whether the running copy is the latest build.
+(Older foot versions call the section `colors` instead of `colors-dark`.)
 
 ## How it works
 

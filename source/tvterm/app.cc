@@ -237,11 +237,75 @@ public:
 
 // ---------------------------------------------------------------------------
 
+static bool underDtach();
+
+// Runs tvclaude under dtach when it is installed: the first start creates
+// the socket, a later one reattaches to the running desktop. Returns only
+// when that is not possible or not wanted.
+static void execUnderDtach(int argc, char **argv)
+{
+    if (underDtach() || getenv("TVCLAUDE_NO_DTACH") || !isatty(0) || !isatty(1))
+        return;
+    std::string dtach;
+    if (const char *path = getenv("PATH"))
+    {
+        std::string dirs = path;
+        for (size_t at = 0; at <= dirs.size() && dtach.empty();)
+        {
+            size_t end = dirs.find(':', at);
+            if (end == std::string::npos)
+                end = dirs.size();
+            std::string cand = dirs.substr(at, end - at) + "/dtach";
+            if (end > at && access(cand.c_str(), X_OK) == 0)
+                dtach = cand;
+            at = end + 1;
+        }
+    }
+    char self[PATH_MAX];
+    ssize_t n = readlink("/proc/self/exe", self, sizeof(self) - 1);
+    if (dtach.empty() || n <= 0)
+        return;
+    self[n] = 0;
+    std::string sock;
+    if (const char *run = getenv("XDG_RUNTIME_DIR"); run && *run)
+        sock = std::string(run) + "/tvclaude.sock";
+    else
+        sock = "/tmp/tvclaude-" + std::to_string((int) getuid()) + ".sock";
+    // Should dtach fail to start us, do not try again from inside it.
+    setenv("TVCLAUDE_NO_DTACH", "1", 1);
+    std::vector<char *> args = {(char *) "dtach", (char *) "-A", (char *) sock.c_str(),
+                                (char *) "-r", (char *) "winch", (char *) "-z", self};
+    for (int i = 1; i < argc; ++i)
+        args.push_back(argv[i]);
+    args.push_back(nullptr);
+    execv(dtach.c_str(), args.data());
+    unsetenv("TVCLAUDE_NO_DTACH");
+}
+
 int main(int argc, char **argv)
 {
     std::vector<std::string> dirs;
+    bool noDtach = false;
     for (int i = 1; i < argc; ++i)
-        dirs.push_back(argv[i]);
+    {
+        std::string a = argv[i];
+        if (a == "--no-dtach")
+            noDtach = true;
+        else if (a == "-h" || a == "--help")
+        {
+            printf("usage: tvclaude [--no-dtach] [folder...]\n\n"
+                   "Opens a Claude Code session per folder (default: the saved\n"
+                   "desktop, or one in the current folder). With dtach installed,\n"
+                   "runs under it: closing the terminal detaches, and running\n"
+                   "tvclaude again reattaches. --no-dtach runs it directly.\n");
+            return 0;
+        }
+        else
+            dirs.push_back(a);
+    }
+    if (!noDtach)
+        execUnderDtach(argc, argv);
+    unsetenv("TVCLAUDE_NO_DTACH");   // Not passed on to the sessions.
     // Turbo look inside the session windows: yellow on dark blue, and the
     // matching Claude Code theme.
     tvterm::setDefaultColors(TColorRGB(0xFF, 0xFF, 0x55), TColorRGB(0x00, 0x00, 0x80));
