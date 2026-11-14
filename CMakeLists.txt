@@ -55,7 +55,17 @@ install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/include/tvterm" DESTINATION include
 
 if (TVTERM_BUILD_APP)
     file(GLOB_RECURSE TVTERM_SRC "${CMAKE_CURRENT_LIST_DIR}/source/tvterm/*.cc")
-    add_executable(tvclaude ${TVTERM_SRC})
+    # Build number (commit count), commit and date, shown in Help > About.
+    set(BUILDINFO_CC "${CMAKE_CURRENT_BINARY_DIR}/buildinfo.cc")
+    add_custom_target(buildinfo
+        COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_LIST_DIR} -DOUT=${BUILDINFO_CC}
+                -P ${CMAKE_CURRENT_LIST_DIR}/cmake/buildinfo.cmake
+        BYPRODUCTS ${BUILDINFO_CC}
+        VERBATIM)
+    add_executable(tvclaude ${TVTERM_SRC} ${BUILDINFO_CC})
+    add_dependencies(tvclaude buildinfo)
+    set_source_files_properties(${BUILDINFO_CC} PROPERTIES
+        GENERATED TRUE SKIP_UNITY_BUILD_INCLUSION TRUE SKIP_PRECOMPILE_HEADERS TRUE)
     tvterm_set_warnings(tvclaude)
     target_link_libraries(tvclaude PRIVATE
         tvterm-core

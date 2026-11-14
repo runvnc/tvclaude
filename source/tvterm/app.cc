@@ -510,19 +510,48 @@ std::vector<TerminalWindow *> TVTermApp::sessionWindows()
     return list;
 }
 
+// True when tvclaude was started by dtach, so the terminal can detach.
+static bool underDtach()
+{
+    char path[64], comm[64] = {};
+    snprintf(path, sizeof(path), "/proc/%d/comm", (int) getppid());
+    if (FILE *f = fopen(path, "r"))
+    {
+        if (!fgets(comm, sizeof(comm), f))
+            comm[0] = 0;
+        fclose(f);
+    }
+    return strncmp(comm, "dtach", 5) == 0;
+}
+
 Boolean TVTermApp::valid(ushort command)
 {
     if (command == cmQuit)
     {
         if (size_t count = getOpenTermCount())
         {
-            auto *format = (count == 1)
-                ? "There is %zu open session window.\nDo you want to quit anyway?"
-                : "There are %zu open session windows.\nDo you want to quit anyway?";
-            bool quit = messageBox(
-                mfConfirmation | mfYesButton | mfNoButton,
-                format, count
-            ) == cmYes;
+            // Under dtach (as the README suggests), detaching keeps the
+            // sessions; say so, since quitting is easily done by habit.
+            char msg[512];
+            const char *plural = count == 1 ? "" : "s";
+            if (underDtach())
+                snprintf(msg, sizeof(msg),
+                    "Quitting ends %zu open session%s.\n\n"
+                    "To keep them running, detach instead: close this "
+                    "terminal or press Ctrl-\\. Run the same dtach "
+                    "command again to come back.\n\nQuit anyway?",
+                    count, plural);
+            else
+                snprintf(msg, sizeof(msg),
+                    "Quitting ends %zu open session%s.\n\n"
+                    "To keep sessions running when you leave, start "
+                    "tvclaude under dtach (see the README) and detach "
+                    "instead of quitting.\n\nQuit anyway?",
+                    count, plural);
+            TRect r(0, 0, 54, 13);
+            r.move((size.x - r.b.x) / 2, (size.y - r.b.y) / 2);
+            bool quit = messageBoxRect(r, msg,
+                mfConfirmation | mfYesButton | mfNoButton) == cmYes;
             if (quit)
                 saveDesktop();
             return quit;
@@ -772,12 +801,20 @@ void TVTermApp::changeDir()
     lastDir = currentDir();
 }
 
+extern const char buildNumber[], buildCommit[], buildDate[];
+
 void TVTermApp::about()
 {
-    messageBox(mfInformation | mfOKButton,
-        "\003Turbo Vision Claude\n\n"
+    char msg[256];
+    snprintf(msg, sizeof(msg),
+        "\003Turbo Vision Claude\n"
+        "\003Build %s (%s), %s\n\n"
         "\003Claude Code sessions in Turbo Vision windows.\n"
-        "\003Built on tvterm by magiblot.");
+        "\003Built on tvterm by magiblot.",
+        buildNumber, buildCommit, buildDate);
+    TRect r(0, 0, 54, 11);
+    r.move((size.x - r.b.x) / 2, (size.y - r.b.y) / 2);
+    messageBoxRect(r, msg, mfInformation | mfOKButton);
 }
 
 // ---------------------------------------------------------------------------

@@ -64,4 +64,6 @@ compile_commands.json
 
 # tvclaude: the README demo and the scripts that record it
 !demo/
+!cmake/
+!cmake/**/
 !demo/**/

@@ -99,7 +99,15 @@ To keep sessions running when the terminal closes:
 dtach -A "$XDG_RUNTIME_DIR/tvclaude.sock" -r winch -z ./build/tvclaude
 ```
 
-Run the same command again to reattach.
+Closing the terminal, or pressing Ctrl-\\, then only detaches: every session
+keeps running, and the same command reattaches. While tvclaude runs, that
+command reattaches to it rather than starting a new build, so after
+rebuilding, quit with File > Exit (Alt-X) first. The Exit warning says which
+of the two you are about to do. Install dtach with your package manager
+(`pacman -S dtach`, `apt install dtach`, `brew install dtach`).
+
+Help > About shows the build number (the commit count), commit and build
+date, so you can tell whether the running copy is the latest build.
 
 ## How it works
 
