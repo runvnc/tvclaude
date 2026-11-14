@@ -99,7 +99,7 @@ To keep sessions running when the terminal closes:
 dtach -A "$XDG_RUNTIME_DIR/tvclaude.sock" -r winch -z ./build/tvclaude
 ```
 
-Closing the terminal, or pressing Ctrl-\\, then only detaches: every session
+Closing the terminal, or pressing `Ctrl-\`, then only detaches: every session
 keeps running, and the same command reattaches. While tvclaude runs, that
 command reattaches to it rather than starting a new build, so after
 rebuilding, quit with File > Exit (Alt-X) first. The Exit warning says which
