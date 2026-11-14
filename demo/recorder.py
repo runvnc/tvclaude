@@ -6,7 +6,8 @@ split in time the way piping keys into `script` can split it.
 usage: recorder.py cols rows out.log timing.log keys.txt -- command...
 
 keys.txt: one step per line, `sleep SECONDS`, `type TEXT` (typed one key at
-a time), or `key NAME` (enter, esc, f5, f6, alt-X, right), # for comments.
+a time), `key NAME` (enter, esc, f5, f6, alt-X, right), or `resize COLS ROWS`
+(as a window manager resizing the terminal), # for comments.
 """
 import fcntl
 import os
@@ -46,6 +47,10 @@ for line in open(keys_path):
             data = KEYS[name]
         steps.append((pending, data))
         pending = 0.0
+    elif word == "resize":
+        c, r = arg.split()
+        steps.append((pending, ("resize", int(c), int(r))))
+        pending = 0.0
     else:
         sys.exit("bad step: " + line)
 end_wait = pending
@@ -66,7 +71,11 @@ finish_at = None
 while True:
     now = time.monotonic()
     if step_i < len(steps) and now >= next_at:
-        os.write(fd, steps[step_i][1])
+        data = steps[step_i][1]
+        if isinstance(data, tuple):   # Resize: the kernel sends SIGWINCH.
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", data[2], data[1], 0, 0))
+        else:
+            os.write(fd, data)
         step_i += 1
         if step_i < len(steps):
             next_at = now + steps[step_i][0]
