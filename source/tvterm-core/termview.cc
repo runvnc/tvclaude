@@ -1,6 +1,7 @@
 #include <tvterm/termview.h>
 #include <tvterm/termctrl.h>
 #include <tvterm/consts.h>
+#include <tvterm/vtermemu.h>
 #include "util.h"
 
 #define Uses_TKeys
@@ -283,6 +284,24 @@ void TerminalView::updateDisplay(TerminalState &state) noexcept
 
     surface.clearDamage();
     delete[] lineBuffer;
+
+    // When the view has grown and the terminal has not caught up yet, paint
+    // what lies beyond its grid blank, rather than leave the window's fresh
+    // buffer there (shown in the host terminal's own colors, often black).
+    if (drawableAreaSize.x < size.x || drawableAreaSize.y < size.y)
+    {
+        TScreenCell blank(TScreenCharacter(' '), defaultCellAttr());
+        TScreenCell *row = new TScreenCell[size.x];
+        for (int x = 0; x < size.x; ++x)
+            row[x] = blank;
+        for (int y = 0; y < size.y; ++y)
+        {
+            int from = y < drawableAreaSize.y ? drawableAreaSize.x : 0;
+            if (from < size.x)
+                writeLine(from, y, size.x - from, 1, &row[from]);
+        }
+        delete[] row;
+    }
 
     prevSelection = selection;
 }

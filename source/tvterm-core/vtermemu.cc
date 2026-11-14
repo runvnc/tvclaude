@@ -247,6 +247,11 @@ void setDefaultColors(TColor fg, TColor bg) noexcept
     vtermemu::defaultBg = bg;
 }
 
+TColorAttr defaultCellAttr() noexcept
+{
+    return {vtermemu::defaultFg, vtermemu::defaultBg};
+}
+
 TerminalEmulator &VTermEmulatorFactory::create(TPoint size, Writer &clientDataWriter) noexcept
 {
     return *new VTermEmulator(size, clientDataWriter);
