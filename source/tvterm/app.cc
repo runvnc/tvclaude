@@ -51,6 +51,25 @@ TCommandSet TVTermApp::tileCmds = []()
     return ts;
 }();
 
+// Claude > menu entries: the slash command each one types.
+static const struct { const char *label; const char *command; } claudeCommands[] =
+{
+    {"~N~ew conversation", "/clear"},
+    {"~C~ompact", "/compact"},
+    {"~R~ewind...", "/rewind"},
+    {"Copy re~p~ly", "/copy"},
+    {"~E~xport...", "/export"},
+    {nullptr, nullptr},
+    {"~M~odel...", "/model"},
+    {"Con~t~ext", "/context"},
+    {"~U~sage", "/usage"},
+    {"Per~m~issions...", "/permissions"},
+    {"~A~gents...", "/agents"},
+    {"~S~ettings...", "/config"},
+    {nullptr, nullptr},
+    {"Re~v~iew changes", "/code-review"},
+};
+
 static long long nowMs()
 {
     timespec ts;
@@ -294,6 +313,16 @@ static const char workspaceMenuName[] = "Wor~k~space";
 TMenuBar *TVTermApp::initMenuBar(TRect r)
 {
     r.b.y = r.a.y + 1;
+    TSubMenu &claudeMenu = *new TSubMenu("~C~laude", kbAltC);
+    for (size_t i = 0; i < sizeof(claudeCommands) / sizeof(*claudeCommands); ++i)
+    {
+        auto &c = claudeCommands[i];
+        if (!c.label)
+            claudeMenu + newLine();
+        else
+            claudeMenu + *new TMenuItem(c.label, ushort(cmClaude0 + i), kbNoKey,
+                                         hcNoContext, c.command);
+    }
     return new TVTermMenuBar(r,
         *new TSubMenu("~F~ile", kbAltF) +
             *new TMenuItem("~N~ew Claude session...", cmNewClaude, kbF3, hcNoContext, "F3") +
@@ -313,6 +342,7 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem("~R~ename...", cmRenameSession, kbNoKey) +
             newLine() +
             *new TMenuItem("~N~ew Claude session...", cmNewClaude, kbF3, hcNoContext, "F3") +
+        claudeMenu +
         *new TSubMenu("~W~indow", kbAltW) +
             *new TMenuItem("~T~ile", cmTileCols, kbNoKey) +
             *new TMenuItem("Tile ~r~ows", cmTileRows, kbNoKey) +
@@ -414,6 +444,9 @@ void TVTermApp::handleEvent(TEvent &event)
                     else if ( event.message.command >= cmWs0 &&
                               event.message.command < cmWs0 + 9 )
                         switchWorkspace(event.message.command - cmWs0);
+                    else if ( event.message.command >= cmClaude0 &&
+                              event.message.command < cmClaude0 + std::size(claudeCommands) )
+                        sendToClaude(claudeCommands[event.message.command - cmClaude0].command);
                     else
                         handled = false;
                     break;
@@ -493,6 +526,21 @@ void TVTermApp::idle()
         pollStatuses();
     }
     checkCascade();
+    // The Enter of a command typed by the Claude menu goes separately, so
+    // Claude does not take the whole command for a paste.
+    if (pendingEnterSession && now >= pendingEnterAt)
+    {
+        for (auto *w : sessionWindows())
+            if (w->sessionId == pendingEnterSession)
+            {
+                TEvent ev {};
+                ev.what = evKeyDown;
+                ev.keyDown.keyCode = kbEnter;
+                ev.keyDown.charScan.charCode = '\r';
+                w->handleEvent(ev);
+            }
+        pendingEnterSession = 0;
+    }
     if (now - lastSaveMs >= 5000)
     {
         lastSaveMs = now;
@@ -749,8 +797,7 @@ void TVTermApp::refreshResumeMenu()
     if (!resumeItem)
         return;
 
-    auto all = listPastSessions();
-    resumeEntries.assign(all.begin(), all.begin() + std::min<size_t>(9, all.size()));
+    resumeEntries = listPastSessions(9);
 
     TMenuItem *head = nullptr, **tail = &head;
     for (size_t i = 0; i < resumeEntries.size(); ++i)
@@ -786,7 +833,7 @@ void TVTermApp::resume(size_t index)
 
 void TVTermApp::resumeDialog()
 {
-    auto all = listPastSessions();
+    auto all = listPastSessions(200);
     if (all.empty())
     {
         messageBox(mfInformation | mfOKButton, "No past Claude sessions found.");
@@ -1128,6 +1175,28 @@ void TVTermApp::renameSession()
         w->setCustomName(name == w->name ? std::string() : name);
     }
     TObject::destroy(d);
+}
+
+void TVTermApp::sendToClaude(const char *command)
+{
+    auto *w = dynamic_cast<TerminalWindow *>(deskTop->current);
+    if (!w || !w->isClaude || w->isEnded())
+    {
+        messageBox(mfInformation | mfOKButton,
+            "Select a Claude window first; %s goes to the window in front.", command);
+        return;
+    }
+    for (const char *p = command; *p; ++p)
+    {
+        TEvent ev {};
+        ev.what = evKeyDown;
+        ev.keyDown.keyCode = (uchar) *p;
+        ev.keyDown.text[0] = *p;
+        ev.keyDown.textLength = 1;
+        w->handleEvent(ev);
+    }
+    pendingEnterSession = w->sessionId;
+    pendingEnterAt = nowMs() + 150;
 }
 
 void TVTermApp::renameWorkspace()

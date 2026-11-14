@@ -140,12 +140,17 @@ void readSession(const std::string &path, const std::string &project,
 
 } // namespace
 
-std::vector<PastSession> listPastSessions()
+std::vector<PastSession> listPastSessions(size_t limit)
 {
     std::vector<PastSession> list;
     const char *home = getenv("HOME");
     if (!home)
         return list;
+    // Find every history file and its time first (cheap), then read only
+    // the newest ones until `limit` have something to show: the files can
+    // add up to hundreds of megabytes.
+    struct File { std::string path, project, id; time_t mtime; off_t size; };
+    std::vector<File> files;
     std::string root = std::string(home) + "/.claude/projects";
     DIR *projects = opendir(root.c_str());
     if (!projects)
@@ -167,26 +172,33 @@ std::vector<PastSession> listPastSessions()
             struct stat st;
             if (stat(path.c_str(), &st) != 0)
                 continue;
-            CacheEntry &entry = cache[path];
-            if (entry.mtime != st.st_mtime || entry.size != st.st_size)
-            {
-                entry.mtime = st.st_mtime;
-                entry.size = st.st_size;
-                readSession(path, p->d_name, name.substr(0, name.size() - 6), entry);
-            }
-            if (entry.hasContent)
-            {
-                PastSession s = entry.session;
-                s.modified = st.st_mtime;
-                list.push_back(std::move(s));
-            }
+            files.push_back({path, p->d_name, name.substr(0, name.size() - 6),
+                             st.st_mtime, st.st_size});
         }
         closedir(d);
     }
     closedir(projects);
-    std::sort(list.begin(), list.end(), [] (auto &a, auto &b) {
-        return a.modified > b.modified;
+    std::sort(files.begin(), files.end(), [] (auto &a, auto &b) {
+        return a.mtime > b.mtime;
     });
+    for (auto &f : files)
+    {
+        if (list.size() >= limit)
+            break;
+        CacheEntry &entry = cache[f.path];
+        if (entry.mtime != f.mtime || entry.size != f.size)
+        {
+            entry.mtime = f.mtime;
+            entry.size = f.size;
+            readSession(f.path, f.project, f.id, entry);
+        }
+        if (entry.hasContent)
+        {
+            PastSession s = entry.session;
+            s.modified = f.mtime;
+            list.push_back(std::move(s));
+        }
+    }
     return list;
 }
 

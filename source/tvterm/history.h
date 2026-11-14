@@ -15,9 +15,9 @@ struct PastSession
     time_t modified {0};
 };
 
-// Every past session with something to show, newest first. Files are
-// re-read only when they changed since the last call.
-std::vector<PastSession> listPastSessions();
+// The newest `limit` past sessions with something to show, newest first.
+// Only those files are read, and only when they changed since last time.
+std::vector<PastSession> listPastSessions(size_t limit);
 
 // Follows one conversation's title as Claude writes it, the way /resume
 // shows it: its custom title, else its AI title, else its last prompt. Only

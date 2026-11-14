@@ -31,6 +31,7 @@ enum : ushort
     cmWsNext,
     cmWsPrev,
     cmWs0 = 2210,     // ... cmWs0 + 8: Workspace > entries.
+    cmClaude0 = 2300, // ... Claude > entries (see claudeCommands in app.cc).
 };
 
 enum : ushort

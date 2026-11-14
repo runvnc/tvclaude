@@ -43,6 +43,9 @@ struct TVTermApp : public TApplication
     void changeDir();
     void about();
     void renameSession();
+
+    // Claude menu: types a slash command into the current Claude window.
+    void sendToClaude(const char *command);
     void resume(size_t index);
     void resumeDialog();
 
@@ -82,6 +85,8 @@ private:
     long long lastSaveMs {0};
     std::vector<std::string> workspaces {"Main"};
     int currentWs {0};
+    int pendingEnterSession {0};  // Presses Enter after a typed command.
+    long long pendingEnterAt {0};
     bool cascaded {false};
     TView *cascadeFront {nullptr};
     std::vector<std::pair<TView *, TRect>> cascadeBounds;

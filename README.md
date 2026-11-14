@@ -54,6 +54,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 | File | New Claude session (F3), Resume ▸, New shell, Change dir, DOS shell, Exit (Alt-X) |
 | Edit | Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), Rename, New Claude session |
+| Claude | Types a slash command into the Claude window in front: New conversation (/clear), Compact, Rewind, Copy reply, Export, Model, Context, Usage, Permissions, Agents, Settings, Review changes |
 | Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
 | Help | About |
