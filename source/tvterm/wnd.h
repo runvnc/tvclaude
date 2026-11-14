@@ -4,6 +4,7 @@
 #include <tvterm/termwnd.h>
 #include <tvterm/consts.h>
 #include "session.h"
+#include "history.h"
 #include <string>
 
 class TerminalWindow : public tvterm::BasicTerminalWindow
@@ -31,6 +32,7 @@ public:
     std::string cwd;        // The folder Claude is in now, when known.
     int workspace {0};      // Which workspace (desktop) it belongs to.
     SessionStatus status {SessionStatus::None};
+    ConversationTitle description;  // What /resume calls the conversation.
 
     const std::string &displayName() const noexcept
         { return customName.empty() ? name : customName; }

@@ -102,7 +102,12 @@ const char *TerminalWindow::getTitle(short maxSize)
         titleBuf += statusName(status);
         titleBuf += ']';
     }
-    if (term && *term)
+    if (isClaude && !description.get().empty())
+    {
+        titleBuf += " - ";
+        titleBuf += description.get();
+    }
+    else if (term && *term)
     {
         titleBuf += " - ";
         titleBuf += term;
@@ -139,6 +144,8 @@ bool TerminalWindow::refreshStatus()
         if (customName.empty() && frame)
             frame->drawView();
     }
+    if (description.update(dir, readConversationId(sessionId)) && frame)
+        frame->drawView();
     SessionStatus s = isDisconnected() ? SessionStatus::Ended : readStatus(sessionId);
     if (s == status)
         return false;

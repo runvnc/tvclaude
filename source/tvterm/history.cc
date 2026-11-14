@@ -190,6 +190,92 @@ std::vector<PastSession> listPastSessions()
     return list;
 }
 
+static std::string findHistoryFile(const std::string &dir, const std::string &id)
+{
+    const char *home = getenv("HOME");
+    if (!home || id.empty())
+        return {};
+    std::string root = std::string(home) + "/.claude/projects";
+    std::string file = "/" + id + ".jsonl";
+    struct stat st;
+    std::string path = root + "/" + projectKey(dir) + file;
+    if (stat(path.c_str(), &st) == 0)
+        return path;
+    // Claude may have filed it under another spelling of the folder.
+    std::string found;
+    if (DIR *projects = opendir(root.c_str()))
+    {
+        while (dirent *p = readdir(projects))
+        {
+            if (p->d_name[0] == '.')
+                continue;
+            path = root + "/" + p->d_name + file;
+            if (stat(path.c_str(), &st) == 0)
+            {
+                found = path;
+                break;
+            }
+        }
+        closedir(projects);
+    }
+    return found;
+}
+
+bool ConversationTitle::update(const std::string &dir, const std::string &newId)
+{
+    if (newId != id)
+    {
+        *this = {};
+        id = newId;
+    }
+    if (path.empty())
+    {
+        // The file appears with the first message; look again now and then.
+        time_t now = time(nullptr);
+        if (id.empty() || now - lastLookup < 3)
+            return false;
+        lastLookup = now;
+        path = findHistoryFile(dir, id);
+        if (path.empty())
+            return false;
+    }
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0 || st.st_size == offset)
+        return false;
+    if (st.st_size < offset)  // Rewritten: read it again.
+    {
+        offset = 0;
+        partial.clear();
+    }
+    FILE *f = fopen(path.c_str(), "r");
+    if (!f)
+        return false;
+    fseeko(f, offset, SEEK_SET);
+    std::string text = std::move(partial);
+    char buf[65536];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+    {
+        text.append(buf, n);
+        offset += n;
+    }
+    fclose(f);
+    // Keep an unfinished last line for next time.
+    size_t end = text.rfind('\n');
+    partial = text.substr(end == std::string::npos ? 0 : end + 1);
+    text.resize(end == std::string::npos ? 0 : end + 1);
+
+    std::string v;
+    if (!(v = lastValue(text, "customTitle")).empty()) custom = v;
+    if (!(v = lastValue(text, "aiTitle")).empty()) ai = v;
+    if (!(v = lastValue(text, "lastPrompt")).empty()) prompt = v;
+    const std::string &best = !custom.empty() ? custom : !ai.empty() ? ai : prompt;
+    if (best == title)
+        return false;
+    title = best;
+    return true;
+}
+
 std::string ageText(time_t when)
 {
     time_t now = time(nullptr);

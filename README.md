@@ -20,7 +20,9 @@ README is in [README.tvterm.md](README.tvterm.md).
 - **Window names**: a Claude window is named after the folder Claude is
   working in, and follows it when Claude `cd`s elsewhere. Session > Rename
   gives a window your own name (leave it empty to go back to the folder);
-  the name is saved with the desktop.
+  the name is saved with the desktop. After the name, the title shows what
+  the conversation is about, as /resume lists it (its /rename title, else
+  Claude's own title, else the last prompt).
 - **Workspaces**: separate desktops of windows, e.g. one per project.
   Workspace > New workspace names one and can start a Claude session in its
   folder; F7 / Shift-F7 or the Workspace menu switch between them. Every

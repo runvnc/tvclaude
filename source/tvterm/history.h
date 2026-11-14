@@ -19,6 +19,24 @@ struct PastSession
 // re-read only when they changed since the last call.
 std::vector<PastSession> listPastSessions();
 
+// Follows one conversation's title as Claude writes it, the way /resume
+// shows it: its custom title, else its AI title, else its last prompt. Only
+// what was added to the history file since the last call is read.
+class ConversationTitle
+{
+public:
+    // `dir` is the folder the session started in; `id` its conversation id.
+    // True when the title changed.
+    bool update(const std::string &dir, const std::string &id);
+    const std::string &get() const noexcept { return title; }
+
+private:
+    std::string id, path, partial;
+    long long offset {0};
+    time_t lastLookup {0};
+    std::string custom, ai, prompt, title;
+};
+
 // "5m", "3h", "2d", "Nov 3": how long ago.
 std::string ageText(time_t when);
 
