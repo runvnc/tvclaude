@@ -23,6 +23,7 @@ enum : ushort
     cmNextWaiting,
     cmAbout,
     cmResumeMore,
+    cmRenameSession,
     cmResume0 = 2100, // ... cmResume0 + 8: File > Resume entries.
     cmWsNew = 2200,
     cmWsRename,

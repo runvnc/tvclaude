@@ -95,7 +95,7 @@ const char *TerminalWindow::getTitle(short maxSize)
         titleBuf += statusGlyph(status);
         titleBuf += ' ';
     }
-    titleBuf += name.empty() ? "Terminal" : name;
+    titleBuf += displayName().empty() ? "Terminal" : displayName();
     if (isClaude && status != SessionStatus::None)
     {
         titleBuf += " [";
@@ -110,10 +110,35 @@ const char *TerminalWindow::getTitle(short maxSize)
     return titleBuf.c_str();
 }
 
+void TerminalWindow::setCustomName(std::string n)
+{
+    customName = std::move(n);
+    if (frame)
+        frame->drawView();
+}
+
+static std::string lastPart(const std::string &path)
+{
+    size_t end = path.find_last_not_of('/');
+    if (end == std::string::npos)
+        return path.empty() ? path : "/";
+    size_t slash = path.rfind('/', end);
+    return path.substr(slash == std::string::npos ? 0 : slash + 1,
+                       end - (slash == std::string::npos ? 0 : slash + 1) + 1);
+}
+
 bool TerminalWindow::refreshStatus()
 {
     if (!isClaude)
         return false;
+    std::string now = readSessionCwd(sessionId);
+    if (!now.empty() && now != cwd)
+    {
+        cwd = now;
+        name = lastPart(cwd);
+        if (customName.empty() && frame)
+            frame->drawView();
+    }
     SessionStatus s = isDisconnected() ? SessionStatus::Ended : readStatus(sessionId);
     if (s == status)
         return false;

@@ -310,6 +310,7 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
         *new TSubMenu("~S~ession", kbAltS) +
             *new TMenuItem("Session ~l~ist...", cmSessionList, kbAlt0, hcNoContext, "Alt-0") +
             *new TMenuItem("Next ~n~eeding you", cmNextWaiting, kbF8, hcNoContext, "F8") +
+            *new TMenuItem("~R~ename...", cmRenameSession, kbNoKey) +
             newLine() +
             *new TMenuItem("~N~ew Claude session...", cmNewClaude, kbF3, hcNoContext, "F3") +
         *new TSubMenu("~W~indow", kbAltW) +
@@ -395,6 +396,7 @@ void TVTermApp::handleEvent(TEvent &event)
                 case cmNextWaiting: nextWaiting(); break;
                 case cmChangeDir: changeDir(); break;
                 case cmAbout: about(); break;
+                case cmRenameSession: renameSession(); break;
                 case cmResumeMore: resumeDialog(); break;
                 case cmWsNew: newWorkspaceDialog(); break;
                 case cmWsRename: renameWorkspace(); break;
@@ -643,7 +645,7 @@ void TVTermApp::sessionList()
         else
             strcpy(num, " ");
         std::string row = std::string(num) + "  " + (w->isClaude ? statusGlyph(w->status) : " ")
-                        + "  " + w->name;
+                        + "  " + clipText(w->displayName(), 26);
         if (row.size() < 34)
             row.resize(34, ' ');
         std::string state = w->isClaude ? statusName(w->status) : "shell";
@@ -849,7 +851,7 @@ static std::string desktopPath()
 
 void TVTermApp::saveDesktop()
 {
-    std::string out = "# tvclaude desktop: kind\tbounds\tnumber\tfolder\tconversation\tworkspace\n";
+    std::string out = "# tvclaude desktop: kind\tbounds\tnumber\tfolder\tconversation\tworkspace\tname\n";
     out += "workspaces";
     for (auto &name : workspaces)
         out += "\t" + name;
@@ -864,7 +866,7 @@ void TVTermApp::saveDesktop()
         snprintf(bounds, sizeof(bounds), "%d %d %d %d", r.a.x, r.a.y, r.b.x, r.b.y);
         out += std::string(w->isClaude ? "claude" : "shell") + "\t" + bounds + "\t" +
                std::to_string((int) w->number) + "\t" + w->dir + "\t" + conv + "\t" +
-               std::to_string(w->workspace) + "\n";
+               std::to_string(w->workspace) + "\t" + w->customName + "\n";
     }
     if (out == lastSavedDesktop)
         return;
@@ -887,7 +889,7 @@ bool TVTermApp::restoreDesktop()
     FILE *f = path.empty() ? nullptr : fopen(path.c_str(), "r");
     if (!f)
         return false;
-    struct Saved { bool isClaude; TRect bounds; short number; std::string dir, conv; int ws {0}; };
+    struct Saved { bool isClaude; TRect bounds; short number; std::string dir, conv; int ws {0}; std::string name; };
     std::vector<std::string> savedWs;
     int savedCurrent = 0;
     std::vector<Saved> saved;
@@ -925,6 +927,8 @@ bool TVTermApp::restoreDesktop()
         s.conv = fields[4];
         if (fields.size() > 5)
             s.ws = atoi(fields[5].c_str());
+        if (fields.size() > 6)
+            s.name = fields[6];
         saved.push_back(std::move(s));
     }
     fclose(f);
@@ -949,6 +953,7 @@ bool TVTermApp::restoreDesktop()
         TerminalWindow *w = newSession(spec);
         if (!w)
             continue;
+        w->customName = s.name;
         if (s.number >= 1 && s.number <= 9)
         {
             bool taken = false;
@@ -1090,6 +1095,39 @@ void TVTermApp::newWorkspaceDialog()
         spec.dir = dir;
         newSession(spec);
     }
+}
+
+void TVTermApp::renameSession()
+{
+    auto *w = dynamic_cast<TerminalWindow *>(deskTop->current);
+    if (!w)
+    {
+        messageBox(mfInformation | mfOKButton, "No window to rename.");
+        return;
+    }
+    char buf[61] = {};
+    strnzcpy(buf, w->displayName().c_str(), sizeof(buf));
+    TDialog *d = new TDialog(TRect(0, 0, 60, 9), "Rename Session");
+    d->options |= ofCentered;
+    TInputLine *in = new TInputLine(TRect(3, 3, 57, 4), 60);
+    d->insert(in);
+    d->insert(new TLabel(TRect(2, 2, 20, 3), "~N~ame:", in));
+    d->insert(new TStaticText(TRect(3, 4, 57, 5), "Leave empty to follow Claude's folder."));
+    d->insert(new TButton(TRect(35, 6, 45, 8), "O~K~", cmOK, bfDefault));
+    d->insert(new TButton(TRect(47, 6, 57, 8), "Cancel", cmCancel, bfNormal));
+    d->selectNext(False);
+    d->setData(buf);
+    if (execView(d) == cmOK)
+    {
+        d->getData(buf);
+        std::string name = buf;
+        std::replace(name.begin(), name.end(), '\t', ' ');
+        while (!name.empty() && name.back() == ' ')
+            name.pop_back();
+        // Typing the automatic name back in means: keep following it.
+        w->setCustomName(name == w->name ? std::string() : name);
+    }
+    TObject::destroy(d);
 }
 
 void TVTermApp::renameWorkspace()

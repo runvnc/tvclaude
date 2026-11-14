@@ -60,6 +60,10 @@ void installClaudeTheme();
 // SessionStart hook), for `claude --resume`; empty when unknown.
 std::string readConversationId(int id);
 
+// The folder session `id`'s Claude is working in now (it follows `cd`),
+// as its hooks last reported it; empty when unknown.
+std::string readSessionCwd(int id);
+
 // Removes the status files of this process.
 void cleanupStatusDir();
 

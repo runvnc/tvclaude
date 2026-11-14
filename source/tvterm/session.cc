@@ -69,6 +69,48 @@ SessionStatus readStatus(int id)
     return SessionStatus::None;
 }
 
+// The JSON string value of `"key"` in the first 8 KB of a file; empty when
+// missing. Hook payloads are flat at the top, so the first match is the one.
+static std::string readHookField(const std::string &path, const char *key)
+{
+    FILE *f = fopen(path.c_str(), "r");
+    if (!f)
+        return {};
+    char buf[8192];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    std::string needle = std::string("\"") + key + "\"";
+    const char *p = strstr(buf, needle.c_str());
+    if (!p)
+        return {};
+    p += needle.size();
+    while (*p == ' ' || *p == ':')
+        ++p;
+    if (*p++ != '"')
+        return {};
+    std::string out;
+    for (; *p && *p != '"'; ++p)
+    {
+        if (*p == '\\' && p[1])
+        {
+            ++p;
+            if (*p == 'u')  // Rare in a path; give up rather than guess.
+                return {};
+        }
+        out += *p;
+    }
+    return *p == '"' ? out : std::string();
+}
+
+std::string readSessionCwd(int id)
+{
+    std::string cwd = readHookField(statusFile(id) + ".last", "cwd");
+    if (cwd.empty())
+        cwd = readHookField(statusFile(id) + ".start", "cwd");
+    return cwd;
+}
+
 std::string readConversationId(int id)
 {
     FILE *f = fopen((statusFile(id) + ".start").c_str(), "r");
@@ -236,13 +278,17 @@ static std::string hookSettings()
     // restoring the desktop later), then report idle.
     std::string sessionStart =
         R"({"hooks":[{"type":"command","command":"cat > \"$TURBO_STATUS_FILE.start\"; printf idle > \"$TURBO_STATUS_FILE\""}]})";
+    // Stop: keep the turn's end info too; its "cwd" is the folder Claude is
+    // in now, which follows a `cd` (the window is named after it).
+    std::string stop =
+        R"({"hooks":[{"type":"command","command":"cat > \"$TURBO_STATUS_FILE.last\"; printf done > \"$TURBO_STATUS_FILE\""}]})";
     return std::string("{\"theme\":\"custom:tvclaude\",\"hooks\":{") +
         "\"SessionStart\":[" + sessionStart + "]," +
         "\"UserPromptSubmit\":[" + hook("working") + "]," +
         "\"PreToolUse\":[" + preTool + "]," +
         "\"PostToolUse\":[" + hook("working") + "]," +
         "\"Notification\":[" + hook("waiting") + "]," +
-        "\"Stop\":[" + hook("done") + "]," +
+        "\"Stop\":[" + stop + "]," +
         "\"SessionEnd\":[" + hook("ended") + "]" +
         "}}";
 }

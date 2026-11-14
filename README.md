@@ -17,6 +17,10 @@ README is in [README.tvterm.md](README.tvterm.md).
   hooks, whether it is working (●), needs you (!), is done (✓) or idle (○).
   The window title shows it, the menu bar counts it, the **Session List**
   (Alt-0) lists every session, and **F8** jumps to the next one that needs you.
+- **Window names**: a Claude window is named after the folder Claude is
+  working in, and follows it when Claude `cd`s elsewhere. Session > Rename
+  gives a window your own name (leave it empty to go back to the folder);
+  the name is saved with the desktop.
 - **Workspaces**: separate desktops of windows, e.g. one per project.
   Workspace > New workspace names one and can start a Claude session in its
   folder; F7 / Shift-F7 or the Workspace menu switch between them. Every
@@ -47,7 +51,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 | --- | --- |
 | File | New Claude session (F3), Resume ▸, New shell, Change dir, DOS shell, Exit (Alt-X) |
 | Edit | Select text, Paste |
-| Session | Session list (Alt-0), Next needing you (F8), New Claude session |
+| Session | Session list (Alt-0), Next needing you (F8), Rename, New Claude session |
 | Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
 | Help | About |

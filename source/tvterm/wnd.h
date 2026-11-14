@@ -25,10 +25,18 @@ public:
     // The session this window runs (see session.h).
     int sessionId {0};
     bool isClaude {false};
-    std::string name;
+    std::string name;       // Automatic: the folder it is working in now.
+    std::string customName; // Set with Session > Rename; wins over name.
     std::string dir;        // The folder the session started in.
+    std::string cwd;        // The folder Claude is in now, when known.
     int workspace {0};      // Which workspace (desktop) it belongs to.
     SessionStatus status {SessionStatus::None};
+
+    const std::string &displayName() const noexcept
+        { return customName.empty() ? name : customName; }
+
+    // Changes the shown name (empty: back to the automatic one).
+    void setCustomName(std::string n);
 
     // Re-reads the status file; true when it changed (the frame is redrawn).
     bool refreshStatus();

@@ -42,6 +42,7 @@ struct TVTermApp : public TApplication
     void nextWaiting();
     void changeDir();
     void about();
+    void renameSession();
     void resume(size_t index);
     void resumeDialog();
 
