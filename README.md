@@ -51,13 +51,17 @@ README is in [README.tvterm.md](README.tvterm.md).
 
 | Menu | Items |
 | --- | --- |
-| File | New Claude session (F3), Resume ▸, New shell, Change dir, DOS shell, Exit (Alt-X) |
-| Edit | Select text, Paste |
-| Session | Session list (Alt-0), Next needing you (F8), Rename, New Claude session |
-| Claude | Types a slash command into the Claude window in front: New conversation (/clear), Compact, Rewind, Copy reply, Export, Model, Context, Usage, Permissions, Agents, Settings, Review changes |
+| File | New Claude session (F3), Resume ▸, New shell, Export conversation, Change dir, DOS shell, Exit (Alt-X) |
+| Edit | Undo (rewind), Copy reply, Select text, Paste |
+| Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Usage, Review changes, New Claude session |
+| Options | Model, Permissions, Agents, Settings |
 | Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
 | Help | About |
+
+The Claude items (Export, Undo, Copy reply, New conversation, Compact, Context,
+Usage, Review changes and the Options menu) type their slash command, shown
+beside each, into the Claude window in front.
 
 F10 opens the menu bar. The desktop keeps these keys for itself; every other
 key goes to the session in the front window.

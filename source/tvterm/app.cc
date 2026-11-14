@@ -51,24 +51,33 @@ TCommandSet TVTermApp::tileCmds = []()
     return ts;
 }();
 
-// Claude > menu entries: the slash command each one types.
+// Claude's slash commands, as menu entries spread over the menus where
+// they fit. Each types its command into the Claude window in front.
 static const struct { const char *label; const char *command; } claudeCommands[] =
 {
-    {"~N~ew conversation", "/clear"},
-    {"~C~ompact", "/compact"},
-    {"~R~ewind...", "/rewind"},
-    {"Copy re~p~ly", "/copy"},
-    {"~E~xport...", "/export"},
-    {nullptr, nullptr},
-    {"~M~odel...", "/model"},
+    {"~E~xport conversation...", "/export"},    // File
+    {"~U~ndo (rewind)...", "/rewind"},          // Edit
+    {"~C~opy reply", "/copy"},
+    {"New ~c~onversation", "/clear"},           // Session
+    {"C~o~mpact", "/compact"},
     {"Con~t~ext", "/context"},
     {"~U~sage", "/usage"},
-    {"Per~m~issions...", "/permissions"},
+    {"Re~v~iew changes", "/code-review"},
+    {"~M~odel...", "/model"},                   // Options
+    {"~P~ermissions...", "/permissions"},
     {"~A~gents...", "/agents"},
     {"~S~ettings...", "/config"},
-    {nullptr, nullptr},
-    {"Re~v~iew changes", "/code-review"},
 };
+
+static TMenuItem &slashItem(const char *command)
+{
+    for (size_t i = 0; i < std::size(claudeCommands); ++i)
+        if (strcmp(claudeCommands[i].command, command) == 0)
+            return *new TMenuItem(claudeCommands[i].label, ushort(cmClaude0 + i),
+                                  kbNoKey, hcNoContext, command);
+    abort();
+}
+
 
 static long long nowMs()
 {
@@ -313,16 +322,6 @@ static const char workspaceMenuName[] = "Wor~k~space";
 TMenuBar *TVTermApp::initMenuBar(TRect r)
 {
     r.b.y = r.a.y + 1;
-    TSubMenu &claudeMenu = *new TSubMenu("~C~laude", kbAltC);
-    for (size_t i = 0; i < sizeof(claudeCommands) / sizeof(*claudeCommands); ++i)
-    {
-        auto &c = claudeCommands[i];
-        if (!c.label)
-            claudeMenu + newLine();
-        else
-            claudeMenu + *new TMenuItem(c.label, ushort(cmClaude0 + i), kbNoKey,
-                                         hcNoContext, c.command);
-    }
     return new TVTermMenuBar(r,
         *new TSubMenu("~F~ile", kbAltF) +
             *new TMenuItem("~N~ew Claude session...", cmNewClaude, kbF3, hcNoContext, "F3") +
@@ -330,10 +329,15 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
                 new TMenu(*new TMenuItem("~M~ore sessions...", cmResumeMore, kbNoKey))) +
             *new TMenuItem("New ~s~hell", cmNewShell, kbNoKey) +
             newLine() +
+            slashItem("/export") +
+            newLine() +
             *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
             *new TMenuItem("~D~OS shell", cmDosShell, kbNoKey) +
             *new TMenuItem("E~x~it", cmQuit, kbAltX, hcNoContext, "Alt-X") +
         *new TSubMenu("~E~dit", kbAltE) +
+            slashItem("/rewind") +
+            newLine() +
+            slashItem("/copy") +
             *new TMenuItem("~S~elect text", cmStartSelection, kbNoKey) +
             *new TMenuItem("~P~aste", cmPaste, kbNoKey) +
         *new TSubMenu("~S~ession", kbAltS) +
@@ -341,8 +345,18 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem("Next ~n~eeding you", cmNextWaiting, kbF8, hcNoContext, "F8") +
             *new TMenuItem("~R~ename...", cmRenameSession, kbNoKey) +
             newLine() +
-            *new TMenuItem("~N~ew Claude session...", cmNewClaude, kbF3, hcNoContext, "F3") +
-        claudeMenu +
+            slashItem("/clear") +
+            slashItem("/compact") +
+            slashItem("/context") +
+            slashItem("/usage") +
+            slashItem("/code-review") +
+            newLine() +
+            *new TMenuItem("New Claude ~s~ession...", cmNewClaude, kbF3, hcNoContext, "F3") +
+        *new TSubMenu("~O~ptions", kbAltO) +
+            slashItem("/model") +
+            slashItem("/permissions") +
+            slashItem("/agents") +
+            slashItem("/config") +
         *new TSubMenu("~W~indow", kbAltW) +
             *new TMenuItem("~T~ile", cmTileCols, kbNoKey) +
             *new TMenuItem("Tile ~r~ows", cmTileRows, kbNoKey) +
