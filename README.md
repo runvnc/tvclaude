@@ -57,10 +57,10 @@ README is in [README.tvterm.md](README.tvterm.md).
 
 | Menu | Items |
 | --- | --- |
-| File | New Claude session (F3), Resume ▸, New shell, Export conversation, Change dir, DOS shell, Exit (Alt-X) |
+| File | New Claude session (F3), Resume ▸, New shell, Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
 | Edit | Undo (rewind), Copy reply, Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Review changes, New Claude session |
-| Options | Model, Permissions, Config |
+| Options | Model, Permissions, Config, On exit |
 | Info | Usage, Stats |
 | Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
@@ -99,11 +99,13 @@ To keep sessions running when the terminal closes:
 dtach -A "$XDG_RUNTIME_DIR/tvclaude.sock" -r winch -z ./build/tvclaude
 ```
 
-Closing the terminal, or pressing `Ctrl-\`, then only detaches: every session
-keeps running, and the same command reattaches. While tvclaude runs, that
-command reattaches to it rather than starting a new build, so after
-rebuilding, quit with File > Exit (Alt-X) first. The Exit warning says which
-of the two you are about to do. Install dtach with your package manager
+Closing the terminal, pressing `Ctrl-\`, or File > Detach then only
+detaches: every session keeps running, and the same command reattaches.
+Under dtach, Exit (Alt-X) with sessions open asks whether to keep them
+running or quit them all, and can remember the answer (change it under
+Options > On exit). While tvclaude runs, the dtach command reattaches to it
+rather than starting a new build, so after rebuilding, quit for real first.
+Install dtach with your package manager
 (`pacman -S dtach`, `apt install dtach`, `brew install dtach`).
 
 Help > About shows the build number (the commit count), commit and build

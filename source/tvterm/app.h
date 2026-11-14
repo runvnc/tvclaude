@@ -42,6 +42,16 @@ struct TVTermApp : public TApplication
     void nextWaiting();
     void changeDir();
     void about();
+
+    // Leaving: under dtach, tvclaude can detach (end the dtach client, so
+    // the terminal closes and every session keeps running) instead of
+    // quitting. What Exit does there is a choice, remembered when asked.
+    enum class ExitChoice { Ask, Detach, Quit };
+    ExitChoice exitChoice {ExitChoice::Ask};
+    void loadOptions();
+    void saveOptions();
+    void exitOptions();
+    bool detach();
     void renameSession();
 
     // Claude menu: types a slash command into the current Claude window.
@@ -103,6 +113,7 @@ private:
     long long pendingEnterAt {0};
     bool cascaded {false};
     TView *cascadeFront {nullptr};
+    TRect cascadeRect;            // The area cascaded into.
     std::vector<std::pair<TView *, TRect>> cascadeBounds;
 
     void pollStatuses();

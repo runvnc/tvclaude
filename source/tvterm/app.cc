@@ -13,6 +13,7 @@
 #define Uses_TInputLine
 #define Uses_TLabel
 #define Uses_TCheckBoxes
+#define Uses_TRadioButtons
 #define Uses_TSItem
 #define Uses_TButton
 #define Uses_TListViewer
@@ -40,6 +41,7 @@
 #include <time.h>
 #include <algorithm>
 #include <sys/stat.h>
+#include <dirent.h>
 
 TCommandSet TVTermApp::tileCmds = []()
 {
@@ -250,6 +252,65 @@ int main(int argc, char **argv)
     app.shutDown();
 }
 
+// True when tvclaude was started by dtach, so the terminal can detach.
+static std::string readProcFile(int pid, const char *name)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/%s", pid, name);
+    std::string out;
+    if (FILE *f = fopen(path, "r"))
+    {
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+            out.append(buf, n);
+        fclose(f);
+    }
+    return out;
+}
+
+static bool underDtach()
+{
+    return readProcFile((int) getppid(), "comm").rfind("dtach", 0) == 0;
+}
+
+// The dtach socket: the argument after -a, -A, -c, -n or -N in the
+// command line of the dtach master that started tvclaude.
+static std::string dtachSocket(int pid)
+{
+    std::string cmd = readProcFile(pid, "cmdline");
+    std::vector<std::string> args;
+    for (size_t at = 0; at < cmd.size();)
+    {
+        size_t end = cmd.find('\0', at);
+        if (end == std::string::npos)
+            end = cmd.size();
+        args.push_back(cmd.substr(at, end - at));
+        at = end + 1;
+    }
+    for (size_t i = 1; i + 1 < args.size(); ++i)
+    {
+        const std::string &a = args[i];
+        if (a == "-a" || a == "-A" || a == "-c" || a == "-n" || a == "-N")
+            return args[i + 1];
+    }
+    return {};
+}
+
+static std::string configDir()
+{
+    std::string dir;
+    if (const char *xdg = getenv("XDG_CONFIG_HOME"); xdg && *xdg)
+        dir = xdg;
+    else if (const char *home = getenv("HOME"))
+        dir = std::string(home) + "/.config";
+    else
+        return {};
+    dir += "/tvclaude";
+    mkdir(dir.c_str(), 0700);
+    return dir;
+}
+
 TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     TProgInit( &TVTermApp::initStatusLine,
                &TVTermApp::initMenuBar,
@@ -260,6 +321,9 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     for (ushort cmd : TerminalWindow::appConsts.focusedCmds())
         disableCommand(cmd);
     disableCommand(cmPaste);
+    if (!underDtach())
+        disableCommand(cmDetach);
+    loadOptions();
 
     // Make room for the session counter at the right of the menu bar.
     enum { indicatorWidth = 36 };
@@ -336,6 +400,8 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             newLine() +
             *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
             *new TMenuItem("~D~OS shell", cmDosShell, kbNoKey) +
+            newLine() +
+            *new TMenuItem("De~t~ach (keep running)", cmDetach, kbNoKey) +
             *new TMenuItem("E~x~it", cmQuit, kbAltX, hcNoContext, "Alt-X") +
         *new TSubMenu("~E~dit", kbAltE) +
             slashItem("/rewind") +
@@ -359,6 +425,8 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             slashItem("/permissions") +
             newLine() +
             slashItem("/config") +
+            newLine() +
+            *new TMenuItem("On e~x~it...", cmExitOptions, kbNoKey) +
         *new TSubMenu("~I~nfo", kbAltI) +
             slashItem("/usage") +
             slashItem("/stats") +
@@ -458,6 +526,8 @@ void TVTermApp::handleEvent(TEvent &event)
                 case cmChangeDir: changeDir(); break;
                 case cmAbout: about(); break;
                 case cmRenameSession: renameSession(); break;
+                case cmDetach: detach(); break;
+                case cmExitOptions: exitOptions(); break;
                 case cmResumeMore: resumeDialog(); break;
                 case cmWsNew: newWorkspaceDialog(); break;
                 case cmWsRename: renameWorkspace(); break;
@@ -510,51 +580,68 @@ std::vector<TerminalWindow *> TVTermApp::sessionWindows()
     return list;
 }
 
-// True when tvclaude was started by dtach, so the terminal can detach.
-static bool underDtach()
-{
-    char path[64], comm[64] = {};
-    snprintf(path, sizeof(path), "/proc/%d/comm", (int) getppid());
-    if (FILE *f = fopen(path, "r"))
-    {
-        if (!fgets(comm, sizeof(comm), f))
-            comm[0] = 0;
-        fclose(f);
-    }
-    return strncmp(comm, "dtach", 5) == 0;
-}
-
 Boolean TVTermApp::valid(ushort command)
 {
     if (command == cmQuit)
     {
-        if (size_t count = getOpenTermCount())
+        size_t count = getOpenTermCount();
+        if (count && underDtach())
         {
-            // Under dtach (as the README suggests), detaching keeps the
-            // sessions; say so, since quitting is easily done by habit.
+            ExitChoice choice = exitChoice;
+            if (choice == ExitChoice::Ask)
+            {
+                // Keep running / Quit / Cancel, and remember the choice.
+                TDialog *d = new TDialog(TRect(0, 0, 58, 13), "Exit");
+                d->options |= ofCentered;
+                char msg[256];
+                snprintf(msg, sizeof(msg),
+                    "%zu session%s open. Keep %s running in the "
+                    "background? Run the same dtach command "
+                    "again to come back.", count, count == 1 ? " is" : "s are",
+                    count == 1 ? "it" : "them");
+                d->insert(new TStaticText(TRect(3, 2, 55, 6), msg));
+                auto *remember = new TCheckBoxes(TRect(3, 7, 55, 8),
+                    new TSItem("~R~emember my choice (Options > On exit)", nullptr));
+                d->insert(remember);
+                d->insert(new TButton(TRect(3, 10, 21, 12), "~K~eep running", cmNo, bfDefault));
+                d->insert(new TButton(TRect(22, 10, 38, 12), "~Q~uit all", cmYes, bfNormal));
+                d->insert(new TButton(TRect(39, 10, 54, 12), "Cancel", cmCancel, bfNormal));
+                d->selectNext(False);
+                d->selectNext(False);   // Focus Keep running.
+                ushort result = deskTop->execView(d);
+                ushort rememberIt = 0;
+                remember->getData(&rememberIt);
+                TObject::destroy(d);
+                if (result == cmCancel)
+                    return False;
+                choice = result == cmNo ? ExitChoice::Detach : ExitChoice::Quit;
+                if (rememberIt & 1)
+                {
+                    exitChoice = choice;
+                    saveOptions();
+                }
+            }
+            if (choice == ExitChoice::Detach)
+            {
+                detach();
+                return False;
+            }
+            saveDesktop();
+            return True;
+        }
+        if (count)
+        {
             char msg[512];
-            const char *plural = count == 1 ? "" : "s";
-            if (underDtach())
-                snprintf(msg, sizeof(msg),
-                    "Quitting ends %zu open session%s.\n\n"
-                    "To keep them running, detach instead: close this "
-                    "terminal or press Ctrl-\\. Run the same dtach "
-                    "command again to come back.\n\nQuit anyway?",
-                    count, plural);
-            else
-                snprintf(msg, sizeof(msg),
-                    "Quitting ends %zu open session%s.\n\n"
-                    "To keep sessions running when you leave, start "
-                    "tvclaude under dtach (see the README) and detach "
-                    "instead of quitting.\n\nQuit anyway?",
-                    count, plural);
+            snprintf(msg, sizeof(msg),
+                "Quitting ends %zu open session%s.\n\n"
+                "To keep sessions running when you leave, start "
+                "tvclaude under dtach (see the README) and detach "
+                "instead of quitting.\n\nQuit anyway?",
+                count, count == 1 ? "" : "s");
             TRect r(0, 0, 54, 13);
             r.move((size.x - r.b.x) / 2, (size.y - r.b.y) / 2);
-            bool quit = messageBoxRect(r, msg,
-                mfConfirmation | mfYesButton | mfNoButton) == cmYes;
-            if (quit)
-                saveDesktop();
-            return quit;
+            if (messageBoxRect(r, msg, mfConfirmation | mfYesButton | mfNoButton) != cmYes)
+                return False;
         }
         saveDesktop();
         return True;
@@ -801,6 +888,104 @@ void TVTermApp::changeDir()
     lastDir = currentDir();
 }
 
+bool TVTermApp::detach()
+{
+    // The dtach client (the process attached to the terminal) is any dtach
+    // other than our master using the same socket. SIGHUP makes it print
+    // [detached] and exit; the master and the sessions carry on.
+    int master = (int) getppid();
+    std::string sock = dtachSocket(master);
+    int ended = 0;
+    if (!sock.empty())
+        if (DIR *proc = opendir("/proc"))
+        {
+            while (dirent *e = readdir(proc))
+            {
+                int pid = atoi(e->d_name);
+                if (pid <= 0 || pid == master)
+                    continue;
+                if (readProcFile(pid, "comm").rfind("dtach", 0) != 0)
+                    continue;
+                if (dtachSocket(pid) == sock && kill(pid, SIGHUP) == 0)
+                    ++ended;
+            }
+            closedir(proc);
+        }
+    saveDesktop();
+    if (!ended)
+        messageBox(mfError | mfOKButton,
+            "Could not find the dtach client to detach.\n"
+            "Press Ctrl-\\ to detach instead.");
+    return ended > 0;
+}
+
+static std::string optionsPath()
+{
+    std::string dir = configDir();
+    return dir.empty() ? dir : dir + "/options";
+}
+
+void TVTermApp::loadOptions()
+{
+    std::string path = optionsPath();
+    FILE *f = path.empty() ? nullptr : fopen(path.c_str(), "r");
+    if (!f)
+        return;
+    char line[256];
+    while (fgets(line, sizeof(line), f))
+    {
+        std::string l = line;
+        while (!l.empty() && (l.back() == '\n' || l.back() == '\r'))
+            l.pop_back();
+        if (l == "exit\tdetach") exitChoice = ExitChoice::Detach;
+        else if (l == "exit\tquit") exitChoice = ExitChoice::Quit;
+        else if (l == "exit\task") exitChoice = ExitChoice::Ask;
+    }
+    fclose(f);
+}
+
+void TVTermApp::saveOptions()
+{
+    std::string path = optionsPath();
+    if (path.empty())
+        return;
+    if (FILE *f = fopen(path.c_str(), "w"))
+    {
+        const char *names[] = {"ask", "detach", "quit"};
+        fprintf(f, "# tvclaude options\nexit\t%s\n", names[(int) exitChoice]);
+        fclose(f);
+    }
+}
+
+void TVTermApp::exitOptions()
+{
+    TDialog *d = new TDialog(TRect(0, 0, 56, 13), "On Exit");
+    d->options |= ofCentered;
+    auto *choice = new TRadioButtons(TRect(3, 3, 53, 6),
+        new TSItem("~A~sk each time",
+        new TSItem("~K~eep sessions running (detach)",
+        new TSItem("~Q~uit, ending all sessions", nullptr))));
+    d->insert(choice);
+    d->insert(new TLabel(TRect(2, 2, 40, 3), "With sessions open, Exit (Alt-X):", choice));
+    d->insert(new TStaticText(TRect(3, 7, 53, 9),
+        underDtach() ? "Applies under dtach; otherwise Exit asks to quit."
+                     : "Applies under dtach. tvclaude is not under dtach now, "
+                       "so Exit asks to quit."));
+    d->insert(new TButton(TRect(14, 10, 26, 12), "O~K~", cmOK, bfDefault));
+    d->insert(new TButton(TRect(28, 10, 40, 12), "Cancel", cmCancel, bfNormal));
+    d->selectNext(False);
+    ushort value = (ushort) exitChoice;
+    choice->setData(&value);
+    ushort result = deskTop->execView(d);
+    if (result == cmOK)
+    {
+        choice->getData(&value);
+        exitChoice = (ExitChoice) value;
+        saveOptions();
+    }
+    TObject::destroy(d);
+}
+
 extern const char buildNumber[], buildCommit[], buildDate[];
 
 void TVTermApp::about()
@@ -952,16 +1137,8 @@ void TVTermApp::resumeDialog()
 
 static std::string desktopPath()
 {
-    std::string dir;
-    if (const char *xdg = getenv("XDG_CONFIG_HOME"); xdg && *xdg)
-        dir = xdg;
-    else if (const char *home = getenv("HOME"))
-        dir = std::string(home) + "/.config";
-    else
-        return {};
-    dir += "/tvclaude";
-    mkdir(dir.c_str(), 0700);
-    return dir + "/desktop";
+    std::string dir = configDir();
+    return dir.empty() ? dir : dir + "/desktop";
 }
 
 void TVTermApp::saveDesktop()
@@ -972,7 +1149,10 @@ void TVTermApp::saveDesktop()
         out += "\t" + name;
     out += "\ncurrent\t" + std::to_string(currentWs) + "\n";
     static const char *layoutNames[] = {"none", "cascade", "tile", "tilerows"};
-    out += std::string("layout\t") + layoutNames[(int) layout] + "\n";
+    // "active": the windows are cascaded right now, so a restore cascades
+    // them again, fitting whatever size the screen has then.
+    out += std::string("layout\t") + layoutNames[(int) layout] +
+           (cascaded ? "\tactive" : "") + "\n";
     for (auto *w : sessionWindows())
     {
         if (w->isEnded())
@@ -1009,6 +1189,7 @@ bool TVTermApp::restoreDesktop()
     struct Saved { bool isClaude; TRect bounds; short number; std::string dir, conv; int ws {0}; std::string name; };
     std::vector<std::string> savedWs;
     int savedCurrent = 0;
+    bool wasCascaded = false;
     std::vector<Saved> saved;
     char line[8192];
     while (fgets(line, sizeof(line), f))
@@ -1029,6 +1210,7 @@ bool TVTermApp::restoreDesktop()
         if (fields[0] == "layout" && fields.size() > 1)
         {
             const std::string &v = fields[1];
+            wasCascaded = v == "cascade" && fields.size() > 2 && fields[2] == "active";
             layout = v == "cascade" ? Layout::Cascade : v == "tile" ? Layout::TileCols :
                      v == "tilerows" ? Layout::TileRows : Layout::None;
             continue;
@@ -1105,6 +1287,8 @@ bool TVTermApp::restoreDesktop()
     int show = (savedCurrent >= 0 && savedCurrent < (int) workspaces.size()) ? savedCurrent : 0;
     currentWs = -1;
     switchWorkspace(show);
+    if (wasCascaded && !cascaded)
+        cascadeWindows();
     return true;
 }
 
@@ -1331,6 +1515,7 @@ void TVTermApp::cascadeWindows()
             cascadeBounds.push_back({w, w->getBounds()});
     cascadeFront = deskTop->current;
     cascaded = !cascadeBounds.empty();
+    cascadeRect = getTileRect();
 }
 
 void TVTermApp::arrange(Layout how)
@@ -1385,6 +1570,7 @@ void TVTermApp::resumeCascade()
         cascadeBounds.push_back({w, w->getBounds()});
     cascadeFront = deskTop->current;
     cascaded = true;
+    cascadeRect = getTileRect();
 }
 
 void TVTermApp::checkCascade()
@@ -1394,6 +1580,11 @@ void TVTermApp::checkCascade()
     TView *cur = deskTop->current;
     if (cur && (cur->state & sfDragging))
         return;   // Wait for the drag to end.
+    if (getTileRect() != cascadeRect)
+    {
+        cascadeWindows();   // The screen was resized.
+        return;
+    }
 
     auto windows = sessionWindows();
     size_t visible = 0;

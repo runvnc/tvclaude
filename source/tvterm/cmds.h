@@ -10,6 +10,7 @@ enum : ushort
     cmTileCols,
     cmTileRows,
     cmStartSelection,
+    cmDetach,         // Only under dtach.
     // Commands that cannot be deactivated.
     cmNewTerm = 2000,
     cmCheckTerminalUpdates,
@@ -24,6 +25,7 @@ enum : ushort
     cmAbout,
     cmResumeMore,
     cmRenameSession,
+    cmExitOptions,
     cmResume0 = 2100, // ... cmResume0 + 8: File > Resume entries.
     cmWsNew = 2200,
     cmWsRename,
