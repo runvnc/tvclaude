@@ -57,7 +57,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 
 | Menu | Items |
 | --- | --- |
-| File | New Claude session (F3), Resume ▸, New shell, Attach file, Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
+| File | New Claude session (F3), Resume ▸, New shell, Attach file(s), Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
 | Edit | Undo (rewind), Copy reply, Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Review changes, New Claude session |
 | Options | Model, Permissions, Config, On exit |
@@ -137,7 +137,7 @@ Code attaches pasted image and file paths:
 dropped screenshot attaches as an image.)
 
 Where dropping does not work (foot, or a full-screen window), File > Attach
-file picks a file and pastes its path into the Claude window in front, the
+file(s) picks a file and pastes its path into the Claude window in front, the
 same way. It opens in the folder you last attached from. Space or Ins marks
 several files, even across folders, and Open attaches them all; dropping
 several files at once works too.

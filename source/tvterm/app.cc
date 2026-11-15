@@ -465,7 +465,7 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
                 new TMenu(*new TMenuItem("~M~ore sessions...", cmResumeMore, kbNoKey))) +
             *new TMenuItem("New ~s~hell", cmNewShell, kbNoKey) +
             newLine() +
-            *new TMenuItem("~A~ttach file...", cmAttachFile, kbNoKey) +
+            *new TMenuItem("~A~ttach file(s)...", cmAttachFile, kbNoKey) +
             slashItem("/export") +
             newLine() +
             *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
@@ -1606,7 +1606,7 @@ public:
 
     AttachDialog(std::set<std::string> &aMarks) :
         TWindowInit(&TDialog::initFrame),
-        TFileDialog("*", "Attach Files (Space marks several)", "~N~ame", fdOpenButton, 110),
+        TFileDialog("*", "Attach File(s) (Space marks several)", "~N~ame", fdOpenButton, 110),
         marks(aMarks) {}
 
     Boolean valid(ushort command) override
