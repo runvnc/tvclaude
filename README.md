@@ -133,7 +133,8 @@ Code attaches pasted image and file paths:
 | GNOME Terminal, Konsole, iTerm2, Windows Terminal | pastes the path |
 | foot | not supported |
 
-(From each terminal's documentation; not yet tried with tvclaude.)
+(From each terminal's documentation; tried with tvclaude in kitty, where a
+dropped screenshot attaches as an image.)
 
 ## How it works
 
