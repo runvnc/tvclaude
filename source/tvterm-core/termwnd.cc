@@ -46,6 +46,12 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
     focusedCmds += cmPaste;
 }
 
+void BasicTerminalWindow::paste(TStringView text) noexcept
+{
+    if (view)
+        view->paste(text);
+}
+
 void BasicTerminalWindow::shutDown()
 {
     view = nullptr;

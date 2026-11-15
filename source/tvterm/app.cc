@@ -14,6 +14,7 @@
 #define Uses_TLabel
 #define Uses_TCheckBoxes
 #define Uses_TRadioButtons
+#define Uses_TFileDialog
 #define Uses_TSItem
 #define Uses_TButton
 #define Uses_TListViewer
@@ -460,6 +461,7 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
                 new TMenu(*new TMenuItem("~M~ore sessions...", cmResumeMore, kbNoKey))) +
             *new TMenuItem("New ~s~hell", cmNewShell, kbNoKey) +
             newLine() +
+            *new TMenuItem("~A~ttach file...", cmAttachFile, kbNoKey) +
             slashItem("/export") +
             newLine() +
             *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
@@ -592,6 +594,7 @@ void TVTermApp::handleEvent(TEvent &event)
                 case cmRenameSession: renameSession(); break;
                 case cmDetach: detach(); break;
                 case cmExitOptions: exitOptions(); break;
+                case cmAttachFile: attachFile(); break;
                 case cmResumeMore: resumeDialog(); break;
                 case cmWsNew: newWorkspaceDialog(); break;
                 case cmWsRename: renameWorkspace(); break;
@@ -1004,6 +1007,7 @@ void TVTermApp::loadOptions()
         if (l == "exit\tdetach") exitChoice = ExitChoice::Detach;
         else if (l == "exit\tquit") exitChoice = ExitChoice::Quit;
         else if (l == "exit\task") exitChoice = ExitChoice::Ask;
+        else if (l.rfind("attachdir\t", 0) == 0) attachDir = l.substr(10);
     }
     fclose(f);
 }
@@ -1017,6 +1021,8 @@ void TVTermApp::saveOptions()
     {
         const char *names[] = {"ask", "detach", "quit"};
         fprintf(f, "# tvclaude options\nexit\t%s\n", names[(int) exitChoice]);
+        if (!attachDir.empty())
+            fprintf(f, "attachdir\t%s\n", attachDir.c_str());
         fclose(f);
     }
 }
@@ -1523,6 +1529,58 @@ void TVTermApp::sendToClaude(const char *command)
     }
     pendingEnterSession = w->sessionId;
     pendingEnterAt = nowMs() + 150;
+}
+
+void TVTermApp::attachFile()
+{
+    auto *w = dynamic_cast<TerminalWindow *>(deskTop->current);
+    if (!w || !w->isClaude || w->isEnded())
+    {
+        messageBox(mfInformation | mfOKButton,
+            "Select a Claude window first; the file goes to the window in front.");
+        return;
+    }
+    std::string dir = attachDir;
+    struct stat st;
+    if (dir.empty() || stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))
+        dir = getenv("HOME") ? getenv("HOME") : "/";
+    if (dir.size() > 1 && dir.back() == '/')
+        dir.pop_back();
+    // The dialog opens in the current folder, and only works out typed
+    // names right from there: so be in 'dir' while it is open.
+    std::string before = currentDir();
+    if (chdir(dir.c_str()) != 0)
+        return;
+    TFileDialog *d = new TFileDialog("*", "Attach File", "~N~ame", fdOpenButton, 110);
+    char path[PATH_MAX] = {};
+    ushort result = execView(d);
+    if (result != cmCancel)
+        d->getData(path);
+    TObject::destroy(d);
+    if (chdir(before.c_str()) != 0)
+        return;
+    if (result == cmCancel || !*path || stat(path, &st) != 0 || S_ISDIR(st.st_mode))
+        return;
+
+    std::string chosen = path;
+    size_t slash = chosen.rfind('/');
+    if (slash != std::string::npos)
+    {
+        attachDir = slash ? chosen.substr(0, slash) : "/";
+        saveOptions();
+    }
+    // As a terminal pastes a dropped file: shell-escaped, then a space.
+    std::string text;
+    for (char c : chosen)
+    {
+        if (strchr(" \t'\"\\()&;|<>*?$`!#[]{}", c))
+            text += '\\';
+        text += c;
+    }
+    text += ' ';
+
+    w->paste(text);
+    w->select();
 }
 
 void TVTermApp::renameWorkspace()

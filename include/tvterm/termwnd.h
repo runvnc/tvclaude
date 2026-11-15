@@ -49,6 +49,9 @@ public:
     void setState(ushort aState, Boolean enable) override;
     ushort execute() override;
 
+    // Sends 'text' to the terminal as a paste.
+    void paste(TStringView text) noexcept;
+
     static TRect viewBounds(const TRect &windowBounds);
     static TPoint viewSize(const TRect &windowBounds);
 };

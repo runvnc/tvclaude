@@ -51,6 +51,11 @@ struct TVTermApp : public TApplication
     void loadOptions();
     void saveOptions();
     void exitOptions();
+
+    // File > Attach file: picks a file and pastes its path into the Claude
+    // window in front, as dropping it on the window would.
+    std::string attachDir;   // Where the picker opens; saved in options.
+    void attachFile();
     bool detach();
     void renameSession();
 

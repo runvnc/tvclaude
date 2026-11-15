@@ -55,6 +55,9 @@ public:
     void setState(ushort aState, bool enable) override;
     void handleEvent(TEvent &ev) override;
     void draw() override;
+
+    // Sends 'text' to the client as a paste (bracketed, when it asked).
+    void paste(TStringView text) noexcept;
 };
 
 } // namespace tvterm

@@ -57,7 +57,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 
 | Menu | Items |
 | --- | --- |
-| File | New Claude session (F3), Resume ▸, New shell, Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
+| File | New Claude session (F3), Resume ▸, New shell, Attach file, Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
 | Edit | Undo (rewind), Copy reply, Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Review changes, New Claude session |
 | Options | Model, Permissions, Config, On exit |
@@ -135,6 +135,10 @@ Code attaches pasted image and file paths:
 
 (From each terminal's documentation; tried with tvclaude in kitty, where a
 dropped screenshot attaches as an image.)
+
+Where dropping does not work (foot, or a full-screen window), File > Attach
+file picks a file and pastes its path into the Claude window in front, the
+same way. It opens in the folder you last attached from.
 
 ## How it works
 

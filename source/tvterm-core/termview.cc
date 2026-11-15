@@ -161,6 +161,31 @@ void TerminalView::handleEvent(TEvent &ev)
     }
 }
 
+void TerminalView::paste(TStringView text) noexcept
+{
+    TerminalEvent ev;
+    ev.type = TerminalEventType::PasteStart;
+    termCtrl.sendEvent(ev);
+    for (size_t i = 0; i < text.size();)
+    {
+        // One UTF-8 character per key.
+        unsigned char c = text[i];
+        size_t n = c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+        n = min(n, text.size() - i);
+        ev = {};
+        ev.type = TerminalEventType::KeyDown;
+        memcpy(ev.keyDown.text, &text[i], n);
+        ev.keyDown.textLength = (uchar) n;
+        if (n == 1)
+            ev.keyDown.charScan.charCode = c;
+        ev.keyDown.controlKeyState = kbPaste;
+        termCtrl.sendEvent(ev);
+        i += n;
+    }
+    ev.type = TerminalEventType::PasteEnd;
+    termCtrl.sendEvent(ev);
+}
+
 void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
 {
     mouse.where = makeLocal(mouse.where);
