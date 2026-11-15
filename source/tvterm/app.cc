@@ -1652,7 +1652,7 @@ void TVTermApp::attachFile()
     TFileDialog *d = new AttachDialog(marks);
     {
         TFileList *old = d->fileList;
-        auto *list = new MarkingFileList(old->getBounds(), old->hScrollBar, marks, *d);
+        auto *list = new MarkingFileList(old->getBounds(), old->vScrollBar, marks, *d);
         list->growMode = old->growMode;
         d->insertBefore(list, old);
         TView *from = old;
