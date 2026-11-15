@@ -122,6 +122,19 @@ end
 
 (Older foot versions call the section `colors` instead of `colors-dark`.)
 
+**Terminals.** tvclaude runs in any terminal; with `COLORTERM=truecolor`
+it draws exact colors, otherwise the nearest of 256 or 16. Dropping a file
+onto the window is up to the terminal, which types its path, and Claude
+Code attaches pasted image and file paths:
+
+| Terminal | Drag and drop |
+|----------|---------------|
+| kitty, WezTerm, Ghostty, Alacritty | pastes the path |
+| GNOME Terminal, Konsole, iTerm2, Windows Terminal | pastes the path |
+| foot | not supported |
+
+(From each terminal's documentation; not yet tried with tvclaude.)
+
 ## How it works
 
 - Each session runs `claude --settings '<json>' --plugin-dir plugin/`. The
