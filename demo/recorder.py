@@ -24,7 +24,7 @@ cmd = sys.argv[sys.argv.index("--") + 1:]
 
 KEYS = {"enter": b"\r", "esc": b"\x1b", "f5": b"\x1b[15~", "f6": b"\x1b[17~",
         "f7": b"\x1b[18~", "f8": b"\x1b[19~", "right": b"\x1b[C", "left": b"\x1b[D",
-        "down": b"\x1b[B", "up": b"\x1b[A", "tab": b"\t"}
+        "down": b"\x1b[B", "up": b"\x1b[A", "tab": b"\t", "ins": b"\x1b[2~"}
 
 steps = []   # (delay before, bytes)
 pending = 0.0

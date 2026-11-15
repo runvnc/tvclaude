@@ -15,6 +15,9 @@
 #define Uses_TCheckBoxes
 #define Uses_TRadioButtons
 #define Uses_TFileDialog
+#define Uses_TFileList
+#define Uses_TFileCollection
+#define Uses_TSearchRec
 #define Uses_TSItem
 #define Uses_TButton
 #define Uses_TListViewer
@@ -41,6 +44,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <algorithm>
+#include <set>
 #include <sys/stat.h>
 #include <dirent.h>
 
@@ -1531,6 +1535,99 @@ void TVTermApp::sendToClaude(const char *command)
     pendingEnterAt = nowMs() + 150;
 }
 
+// The file dialog's folder is kept DOS style ("C:\tmp\"); as a Unix path.
+static std::string unixDir(const char *dosDir)
+{
+    std::string d = dosDir ? dosDir : "";
+    if (d.size() >= 2 && d[1] == ':')
+        d.erase(0, 2);
+    std::replace(d.begin(), d.end(), '\\', '/');
+    if (d.empty() || d.back() != '/')
+        d += '/';
+    return d;
+}
+
+// The Attach dialog's file list: Space or Ins marks the file under the
+// cursor (and moves down), so several can be attached at once. Marks are
+// full paths, so they stay while browsing other folders.
+class MarkingFileList : public TFileList
+{
+public:
+    std::set<std::string> &marks;
+    TFileDialog &dialog;
+
+    MarkingFileList(const TRect &r, TScrollBar *sb, std::set<std::string> &aMarks,
+                    TFileDialog &aDialog) :
+        TFileList(r, sb), marks(aMarks), dialog(aDialog) {}
+
+    TSearchRec *entry(short item)
+    {
+        return list() && item >= 0 && item < list()->getCount()
+            ? (TSearchRec *) list()->at(item) : nullptr;
+    }
+
+    std::string pathOf(TSearchRec *f) { return unixDir(dialog.directory) + f->name; }
+
+    void getText(char *dest, short item, short maxChars) override
+    {
+        char name[MAXPATH];
+        TFileList::getText(name, item, sizeof(name) - 1);
+        TSearchRec *f = entry(item);
+        bool marked = f && !(f->attr & 0x10 /* FA_DIREC */) && marks.count(pathOf(f));
+        snprintf(dest, maxChars + 1, "%s%s", marked ? "\u221a " : "  ", name);
+    }
+
+    void handleEvent(TEvent &ev) override
+    {
+        if ( ev.what == evKeyDown &&
+             (ev.keyDown.keyCode == kbIns || ev.keyDown.charScan.charCode == ' ') )
+        {
+            if (TSearchRec *f = entry(focused); f && !(f->attr & 0x10 /* FA_DIREC */))
+            {
+                std::string p = pathOf(f);
+                if (!marks.erase(p))
+                    marks.insert(p);
+            }
+            if (focused + 1 < range)
+                focusItem(focused + 1);
+            drawView();
+            clearEvent(ev);
+            return;
+        }
+        TFileList::handleEvent(ev);
+    }
+};
+
+// With files marked, Open attaches them, whatever the Name field says.
+class AttachDialog : public TFileDialog
+{
+public:
+    std::set<std::string> &marks;
+
+    AttachDialog(std::set<std::string> &aMarks) :
+        TWindowInit(&TDialog::initFrame),
+        TFileDialog("*", "Attach Files (Space marks several)", "~N~ame", fdOpenButton, 110),
+        marks(aMarks) {}
+
+    Boolean valid(ushort command) override
+    {
+        if (command == cmFileOpen && !marks.empty())
+            return True;
+        return TFileDialog::valid(command);
+    }
+};
+
+// Lets the Attach dialog point its "Files" label at the new list.
+struct LabelLink : TLabel
+{
+    static void relink(TView *v, TView *from, TView *to)
+    {
+        if (auto *l = dynamic_cast<TLabel *>(v))
+            if (static_cast<LabelLink *>(l)->link == from)
+                static_cast<LabelLink *>(l)->link = to;
+    }
+};
+
 void TVTermApp::attachFile()
 {
     auto *w = dynamic_cast<TerminalWindow *>(deskTop->current);
@@ -1551,7 +1648,23 @@ void TVTermApp::attachFile()
     std::string before = currentDir();
     if (chdir(dir.c_str()) != 0)
         return;
-    TFileDialog *d = new TFileDialog("*", "Attach File", "~N~ame", fdOpenButton, 110);
+    std::set<std::string> marks;
+    TFileDialog *d = new AttachDialog(marks);
+    {
+        TFileList *old = d->fileList;
+        auto *list = new MarkingFileList(old->getBounds(), old->hScrollBar, marks, *d);
+        list->growMode = old->growMode;
+        d->insertBefore(list, old);
+        TView *from = old;
+        d->forEach([] (TView *v, void *arg) {
+            auto **pair = (TView **) arg;
+            LabelLink::relink(v, pair[0], pair[1]);
+        }, (TView *[]) {from, list});
+        d->remove(old);
+        TObject::destroy(old);
+        d->fileList = list;
+        list->readDirectory(d->directory, d->wildCard);
+    }
     char path[PATH_MAX] = {};
     ushort result = execView(d);
     if (result != cmCancel)
@@ -1559,25 +1672,33 @@ void TVTermApp::attachFile()
     TObject::destroy(d);
     if (chdir(before.c_str()) != 0)
         return;
-    if (result == cmCancel || !*path || stat(path, &st) != 0 || S_ISDIR(st.st_mode))
+    if (result == cmCancel)
+        return;
+    std::vector<std::string> files(marks.begin(), marks.end());
+    if (files.empty() && *path && stat(path, &st) == 0 && !S_ISDIR(st.st_mode))
+        files.push_back(path);
+    if (files.empty())
         return;
 
-    std::string chosen = path;
-    size_t slash = chosen.rfind('/');
+    size_t slash = files.back().rfind('/');
     if (slash != std::string::npos)
     {
-        attachDir = slash ? chosen.substr(0, slash) : "/";
+        attachDir = slash ? files.back().substr(0, slash) : "/";
         saveOptions();
     }
-    // As a terminal pastes a dropped file: shell-escaped, then a space.
+    // As a terminal pastes dropped files: shell-escaped, each followed by a
+    // space. Claude Code turns each image path into an attachment.
     std::string text;
-    for (char c : chosen)
+    for (auto &file : files)
     {
-        if (strchr(" \t'\"\\()&;|<>*?$`!#[]{}", c))
-            text += '\\';
-        text += c;
+        for (char c : file)
+        {
+            if (strchr(" \t'\"\\()&;|<>*?$`!#[]{}", c))
+                text += '\\';
+            text += c;
+        }
+        text += ' ';
     }
-    text += ' ';
 
     w->paste(text);
     w->select();

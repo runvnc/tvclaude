@@ -138,7 +138,9 @@ dropped screenshot attaches as an image.)
 
 Where dropping does not work (foot, or a full-screen window), File > Attach
 file picks a file and pastes its path into the Claude window in front, the
-same way. It opens in the folder you last attached from.
+same way. It opens in the folder you last attached from. Space or Ins marks
+several files, even across folders, and Open attaches them all; dropping
+several files at once works too.
 
 ## How it works
 
