@@ -197,6 +197,10 @@ enum class TerminalEventType
     FocusChange,
     ScrollBackOffsetChange,
     CopySelection,
+    // Around keys that came from a paste (bracketed paste in the host
+    // terminal), so the client sees a paste too: a dropped file's path, say.
+    PasteStart,
+    PasteEnd,
 };
 
 struct MouseEvent

@@ -115,6 +115,24 @@ void TerminalView::handleEvent(TEvent &ev)
         case evKeyDown:
         {
             TerminalEvent termEvent;
+            if (ev.keyDown.controlKeyState & kbPaste)
+            {
+                // Forward the whole paste between paste markers.
+                termEvent.type = TerminalEventType::PasteStart;
+                termCtrl.sendEvent(termEvent);
+                termEvent.type = TerminalEventType::KeyDown;
+                do {
+                    termEvent.keyDown = ev.keyDown;
+                    termCtrl.sendEvent(termEvent);
+                    getEvent(ev, 0);
+                } while (ev.what == evKeyDown && (ev.keyDown.controlKeyState & kbPaste));
+                if (ev.what != evNothing)
+                    putEvent(ev);
+                termEvent.type = TerminalEventType::PasteEnd;
+                termCtrl.sendEvent(termEvent);
+                clearEvent(ev);
+                break;
+            }
             termEvent.type = TerminalEventType::KeyDown;
             termEvent.keyDown = ev.keyDown;
             termCtrl.sendEvent(termEvent);

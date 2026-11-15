@@ -315,6 +315,14 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
             scrollback.followTerminal();
             break;
 
+        case TerminalEventType::PasteStart:
+            vterm_keyboard_start_paste(vt);
+            break;
+
+        case TerminalEventType::PasteEnd:
+            vterm_keyboard_end_paste(vt);
+            break;
+
         case TerminalEventType::Mouse:
             if (localState.mouseEnabled)
                 processMouse(vt, event.mouse.what, event.mouse.mouse);
