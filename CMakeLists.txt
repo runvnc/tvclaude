@@ -67,6 +67,7 @@ if (TVTERM_BUILD_APP)
     set_source_files_properties(${BUILDINFO_CC} PROPERTIES
         GENERATED TRUE SKIP_UNITY_BUILD_INCLUSION TRUE SKIP_PRECOMPILE_HEADERS TRUE)
     tvterm_set_warnings(tvclaude)
+    target_compile_features(tvclaude PRIVATE cxx_std_17)
     target_link_libraries(tvclaude PRIVATE
         tvterm-core
     )
