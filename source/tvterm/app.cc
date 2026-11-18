@@ -42,6 +42,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
+#include <cerrno>
 #include <time.h>
 #include <algorithm>
 #include <set>
@@ -555,6 +556,81 @@ TDeskTop *TVTermApp::initDeskTop(TRect r)
     r.a.y += 1;
     r.b.y -= 1;
     return new TVTermDesk(r);
+}
+
+// Turns the terminal's mouse reporting, bracketed paste and key modes back on.
+// They belong to the terminal, not to tvclaude: after a dtach reattach the new
+// terminal has none of them, so the mouse would do nothing. dtach resizes the
+// screen on every attach, so this runs on every screen change; sending them
+// again to a terminal that already has them is harmless.
+static void terminalModesOn()
+{
+    static const char seq[] =
+        "\x1B[?1000h"   // Mouse reporting.
+        "\x1B[?1002h"   // Mouse drag reporting.
+        "\x1B[?1006h"   // SGR extended mouse reporting.
+        "\x1B[?1036h"   // metaSendsEscape (XTerm).
+        "\x1B[?2004h"   // Bracketed paste.
+        "\x1B[>4;1m"    // modifyOtherKeys (XTerm).
+        "\x1B[=5;1u"    // Kitty keyboard flags, set rather than pushed.
+        ;
+    if (isatty(STDOUT_FILENO))
+    {
+        size_t done = 0;
+        while (done < sizeof(seq) - 1)
+        {
+            ssize_t n = write(STDOUT_FILENO, seq + done, sizeof(seq) - 1 - done);
+            if (n <= 0 && errno != EINTR)
+                break;
+            if (n > 0)
+                done += n;
+        }
+    }
+}
+
+// tvision handles SIGWINCH and swallows the resulting cmScreenChanged inside
+// TProgram::getEvent, so we chain our own handler in front of its one to
+// learn about screen changes. tvision reinstalls its handler when it resumes
+// (after DOS shell), hence the check on every event.
+static volatile sig_atomic_t screenChanged = 0;
+static struct sigaction nextWinch;
+
+static void onWinch(int sig, siginfo_t *info, void *ctx)
+{
+    screenChanged = 1;
+    if (nextWinch.sa_flags & SA_SIGINFO)
+    {
+        if (nextWinch.sa_sigaction)
+            nextWinch.sa_sigaction(sig, info, ctx);
+    }
+    else if (nextWinch.sa_handler != SIG_DFL && nextWinch.sa_handler != SIG_IGN)
+        nextWinch.sa_handler(sig);
+}
+
+static void watchWinch()
+{
+    struct sigaction cur;
+    if (sigaction(SIGWINCH, nullptr, &cur) == -1)
+        return;
+    if ((cur.sa_flags & SA_SIGINFO) && cur.sa_sigaction == onWinch)
+        return;
+    struct sigaction sa {};
+    sa.sa_sigaction = onWinch;
+    sa.sa_flags = SA_SIGINFO | SA_RESTART;
+    sigfillset(&sa.sa_mask);
+    nextWinch = cur;
+    sigaction(SIGWINCH, &sa, nullptr);
+}
+
+void TVTermApp::getEvent(TEvent &event)
+{
+    watchWinch();
+    TApplication::getEvent(event);
+    if (screenChanged)
+    {
+        screenChanged = 0;
+        terminalModesOn();
+    }
 }
 
 void TVTermApp::handleEvent(TEvent &event)
