@@ -65,7 +65,7 @@ README is in [README.tvterm.md](README.tvterm.md).
 | File | New Claude session (F3), Resume ▸, New shell, Attach file(s), Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
 | Edit | Undo (rewind), Copy reply, Select text, Paste |
 | Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Review changes, Background tasks, Memory, Init CLAUDE.md, Add folder, New Claude session |
-| Options | Model, Effort, Fast mode, Permissions, Output style, MCP servers, Agents, Hooks, Plugins, Skills, Config, Theme ▸ (Retro ▸, Modern ▸), On exit |
+| Options | Model, Effort, Fast mode, Permissions, Output style, MCP servers, Hooks, Plugins, Skills, Config, Theme ▸ (Retro ▸, Modern ▸), On exit |
 | Info | Usage, Stats, Doctor, Release notes |
 | Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |

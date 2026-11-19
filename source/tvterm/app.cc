@@ -82,7 +82,6 @@ static const struct { const char *label; const char *command; } claudeCommands[]
     {"~P~ermissions...", "/permissions"},
     {"Output st~y~le...", "/output-style"},
     {"MCP ser~v~ers...", "/mcp"},
-    {"~A~gents...", "/agents"},
     {"~H~ooks...", "/hooks"},
     {"Pl~u~gins...", "/plugin"},
     {"S~k~ills...", "/skills"},
@@ -595,7 +594,6 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             slashItem("/output-style") +
             newLine() +
             slashItem("/mcp") +
-            slashItem("/agents") +
             slashItem("/hooks") +
             slashItem("/plugin") +
             slashItem("/skills") +
