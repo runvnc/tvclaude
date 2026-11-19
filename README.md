@@ -162,6 +162,9 @@ several files at once works too.
   theme's colors (black on teal in the classic one) while running inside
   tvclaude.
 - Sessions see `TURBOVISION=1` in their environment.
+- `patches/` holds fixes to the tvision submodule, which CMake applies when
+  configuring. `tvision-wakeup.patch` stops a stray byte in tvision's wake-up
+  pipe from making the event loop spin at 100% CPU.
 
 ## License
 

@@ -1,0 +1,60 @@
+diff --git a/source/platform/events.cpp b/source/platform/events.cpp
+index 77b09ac..d0b2401 100644
+--- a/source/platform/events.cpp
++++ b/source/platform/events.cpp
+@@ -11,6 +11,7 @@ using std::chrono::steady_clock;
+ #include <fcntl.h>
+ #include <sys/ioctl.h>
+ #include <sys/select.h>
++#include <errno.h>
+ #endif
+ 
+ namespace tvision
+@@ -27,6 +28,9 @@ bool SysManualEvent::createHandle(int (&fds)[2]) noexcept
+     {
+         for (int fd : fds)
+             fcntl(fd, F_SETFD, FD_CLOEXEC);
++        // The read end never blocks, so 'clear' can drain it whatever is in
++        // it (see WakeUpEventSource::clear).
++        fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK);
+         return true;
+     }
+     return false;
+@@ -46,8 +50,14 @@ void SysManualEvent::signal() noexcept
+ 
+ void SysManualEvent::clear() noexcept
+ {
+-    char c;
+-    while (read(fds[0], &c, sizeof(char)) == 0);
++    // Drain everything. Reading a single byte, and giving up on an error such
++    // as EINTR, could leave a byte behind: the handle would then stay readable
++    // forever while the event counts as cleared, and the event loop would
++    // spin at 100% CPU.
++    char buf[64];
++    ssize_t n;
++    while ((n = read(fds[0], buf, sizeof(buf))) > 0 || (n < 0 && errno == EINTR))
++        ;
+ }
+ 
+ #else
+@@ -100,13 +110,13 @@ void WakeUpEventSource::signal() noexcept
+ 
+ bool WakeUpEventSource::clear() noexcept
+ {
+-    if (signaled)
+-    {
+-        sys.clear();
+-        signaled = false;
+-        return true;
+-    }
+-    return false;
++    // Called whenever the handle is readable. Drain it even when not
++    // 'signaled' (a stray byte must not keep it readable forever), and drain
++    // before resetting 'signaled', so a signal arriving in between is either
++    // drained here and reported now, or written after the reset and seen by
++    // the next wait.
++    sys.clear();
++    return signaled.exchange(false);
+ }
+ 
+ bool WakeUpEventSource::getEvent(TEvent &ev) noexcept

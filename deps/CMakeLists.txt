@@ -38,5 +38,22 @@ if (TVTERM_USE_SYSTEM_TVISION)
     get_target_property(_TVISION tvision LOCATION)
     message(STATUS "Found 'tvision': ${_TVISION}")
 else()
+    # tvclaude's fixes to the tvision submodule (patches/), applied once:
+    # skipped when they are already in place.
+    foreach(_patch tvision-wakeup.patch)
+        set(_file "${CMAKE_CURRENT_LIST_DIR}/../patches/${_patch}")
+        execute_process(COMMAND git apply --reverse --check "${_file}"
+                        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/tvision"
+                        RESULT_VARIABLE _applied OUTPUT_QUIET ERROR_QUIET)
+        if (NOT _applied EQUAL 0)
+            execute_process(COMMAND git apply "${_file}"
+                            WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/tvision"
+                            RESULT_VARIABLE _result)
+            if (NOT _result EQUAL 0)
+                message(FATAL_ERROR "Could not apply patches/${_patch} to deps/tvision")
+            endif()
+            message(STATUS "Applied patches/${_patch} to deps/tvision")
+        endif()
+    endforeach()
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tvision" EXCLUDE_FROM_ALL)
 endif()

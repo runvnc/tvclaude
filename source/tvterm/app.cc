@@ -701,7 +701,7 @@ static void terminalModesOn()
 // tvision handles SIGWINCH and swallows the resulting cmScreenChanged inside
 // TProgram::getEvent, so we chain our own handler in front of its one to
 // learn about screen changes. tvision reinstalls its handler when it resumes
-// (after DOS shell), hence the check on every event.
+// (after DOS shell), hence the check, once a second.
 static volatile sig_atomic_t screenChanged = 0;
 static struct sigaction nextWinch;
 
@@ -734,7 +734,13 @@ static void watchWinch()
 
 void TVTermApp::getEvent(TEvent &event)
 {
-    watchWinch();
+    static long long lastWatch = 0;
+    long long now = nowMs();
+    if (now - lastWatch >= 1000)
+    {
+        lastWatch = now;
+        watchWinch();
+    }
     TApplication::getEvent(event);
     if (screenChanged)
     {

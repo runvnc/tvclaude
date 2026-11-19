@@ -67,3 +67,7 @@ compile_commands.json
 !cmake/
 !cmake/**/
 !demo/**/
+
+# tvclaude: fixes applied to the tvision submodule
+!patches/
+!patches/**/
