@@ -58,6 +58,8 @@ public:
 
     // Sends 'text' to the client as a paste (bracketed, when it asked).
     void paste(TStringView text) noexcept;
+    // Repaints the whole terminal, e.g. after the default colors changed.
+    void redrawContents() noexcept;
 };
 
 } // namespace tvterm

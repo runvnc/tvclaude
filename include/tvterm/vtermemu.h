@@ -14,6 +14,9 @@ namespace tvterm
 // The colors drawn for cells that use the terminal's default foreground and
 // background. By default, those of the host terminal.
 void setDefaultColors(TColor fg, TColor bg) noexcept;
+// RGB for the 16 ANSI colors (black, red, green, yellow, blue, magenta, cyan,
+// white, then the bright ones), or null for the host terminal's own.
+void setAnsiColors(const TColorRGB *colors) noexcept;
 // The colors of a blank cell: the ones setDefaultColors set.
 TColorAttr defaultCellAttr() noexcept;
 
@@ -95,6 +98,7 @@ private:
     GrowArray strFragBuf;
     LocalState localState;
     Scrollback scrollback;
+    bool forceRedraw {false};
 
     static const VTermScreenCallbacks callbacks;
 

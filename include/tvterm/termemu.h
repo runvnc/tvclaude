@@ -201,6 +201,8 @@ enum class TerminalEventType
     // terminal), so the client sees a paste too: a dropped file's path, say.
     PasteStart,
     PasteEnd,
+    // Repaint every cell, e.g. after the default colors changed.
+    Redraw,
 };
 
 struct MouseEvent

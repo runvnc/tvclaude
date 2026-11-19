@@ -42,8 +42,13 @@ README is in [README.tvterm.md](README.tvterm.md).
 - **Resume** (File > Resume) lists your 9 most recent Claude conversations
   by title, folder and age, from any project; **More sessions...** lists them
   all. Each opens in a new window with `claude --resume`, in its folder.
-- **Turbo colors inside the windows**: yellow text on dark blue, a matching
-  Claude Code theme, and your own prompts drawn black on teal.
+- **Themes** (Options > Theme): the classic Turbo Vision colors, a softer
+  Turbo Vision that is easier on the eyes, and other retro looks (Norton
+  Commander, Commodore 64, green and amber phosphor), or modern ones
+  (Catppuccin Mocha and Latte, Tokyo Night, Dracula, Gruvbox, Nord, One
+  Dark, Rose Pine, Solarized Dark and Light). A theme colors the whole
+  desktop, the text inside the session windows and Claude Code itself, in
+  running sessions too, and is remembered between runs.
 - **The desktop comes back.** Like Turbo Pascal's `TURBO.DSK`, tvclaude
   saves every workspace and window (folder, place, number and Claude
   conversation) to
@@ -59,16 +64,17 @@ README is in [README.tvterm.md](README.tvterm.md).
 | --- | --- |
 | File | New Claude session (F3), Resume ▸, New shell, Attach file(s), Export conversation, Change dir, DOS shell, Detach, Exit (Alt-X) |
 | Edit | Undo (rewind), Copy reply, Select text, Paste |
-| Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Review changes, New Claude session |
-| Options | Model, Permissions, Config, On exit |
-| Info | Usage, Stats |
+| Session | Session list (Alt-0), Next needing you (F8), Rename, New conversation, Compact, Context, Review changes, Background tasks, Memory, Init CLAUDE.md, Add folder, New Claude session |
+| Options | Model, Effort, Fast mode, Permissions, Output style, MCP servers, Agents, Hooks, Plugins, Skills, Config, Theme ▸ (Retro ▸, Modern ▸), On exit |
+| Info | Usage, Stats, Doctor, Release notes |
 | Workspace | New workspace, Rename, Close workspace, Next (F7), Previous (Shift-F7), one entry per workspace |
 | Window | Tile, Tile rows, Cascade, Size/Move (Ctrl-F5), Zoom (F5), Next (F6), Previous (Shift-F6), Close (Alt-F3), Grab input |
-| Help | About, Claude status |
+| Help | About, Claude status, Claude help, Send feedback |
 
-The Claude items (Export, Undo, Copy reply, New conversation, Compact, Context,
-Review changes, the Options and Info menus and Claude status) type their slash command, shown
-beside each, into the Claude window in front.
+The Claude items (Export, Undo, Copy reply, the Claude items of the Session
+menu, the Options menu except Theme and On exit, the Info menu, and Claude
+status, help and feedback) type their slash command (`/export`, `/effort`,
+`/fast`, ...) into the Claude window in front.
 
 F10 opens the menu bar. The desktop keeps these keys for itself; every other
 key goes to the session in the front window.
@@ -148,10 +154,13 @@ several files at once works too.
   settings select the `tvclaude` theme and add hooks that write the session's
   state to a file under `$XDG_RUNTIME_DIR`; tvclaude polls those files.
   Nothing in your own Claude Code settings changes.
-- On start, tvclaude writes the theme to `~/.claude/themes/tvclaude.json`
-  (Claude Code reads themes only from there).
-- `plugin/` is a small Claude Code plugin that draws your prompts black on
-  teal while running inside tvclaude.
+- On start and on each theme change, tvclaude writes the matching Claude
+  Code theme to `~/.claude/themes/tvclaude.json` (Claude Code reads themes
+  only from there, and running sessions redraw when it changes). The chosen
+  theme is saved in `~/.config/tvclaude/options`.
+- `plugin/` is a small Claude Code plugin that draws your prompts in the
+  theme's colors (black on teal in the classic one) while running inside
+  tvclaude.
 - Sessions see `TURBOVISION=1` in their environment.
 
 ## License

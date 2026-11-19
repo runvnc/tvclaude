@@ -1,1 +1,1 @@
-{ "name": "tvclaude", "version": "0.1.0", "description": "Draws your prompts black on teal inside tvclaude windows", "license": "MIT" }
+{ "name": "tvclaude", "version": "0.1.0", "description": "Draws your prompts in the tvclaude theme's colors (black on teal in the classic one)", "license": "MIT" }

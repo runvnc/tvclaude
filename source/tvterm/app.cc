@@ -9,6 +9,7 @@
 #define Uses_TEvent
 #define Uses_TChDirDialog
 #define Uses_TDeskTop
+#define Uses_TBackground
 #define Uses_TDialog
 #define Uses_TInputLine
 #define Uses_TLabel
@@ -34,6 +35,7 @@
 #include "wnd.h"
 #include "apputil.h"
 #include "history.h"
+#include "theme.h"
 #include <tvterm/termctrl.h>
 #include <tvterm/vtermemu.h>
 
@@ -70,12 +72,28 @@ static const struct { const char *label; const char *command; } claudeCommands[]
     {"C~o~mpact", "/compact"},
     {"Con~t~ext", "/context"},
     {"Re~v~iew changes", "/code-review"},
+    {"Back~g~round tasks", "/tasks"},
+    {"~M~emory...", "/memory"},
+    {"~I~nit CLAUDE.md", "/init"},
+    {"~A~dd folder...", "/add-dir"},
     {"~M~odel...", "/model"},                   // Options
+    {"~E~ffort...", "/effort"},
+    {"~F~ast mode", "/fast"},
     {"~P~ermissions...", "/permissions"},
+    {"Output st~y~le...", "/output-style"},
+    {"MCP ser~v~ers...", "/mcp"},
+    {"~A~gents...", "/agents"},
+    {"~H~ooks...", "/hooks"},
+    {"Pl~u~gins...", "/plugin"},
+    {"S~k~ills...", "/skills"},
     {"~C~onfig...", "/config"},
     {"~U~sage", "/usage"},                      // Info
     {"S~t~ats", "/stats"},
+    {"~D~octor", "/doctor"},
+    {"~R~elease notes", "/release-notes"},
     {"Claude ~s~tatus", "/status"},             // Help
+    {"Claude ~h~elp", "/help"},
+    {"Send ~f~eedback...", "/feedback"},
 };
 
 static TMenuItem &slashItem(const char *command)
@@ -83,7 +101,7 @@ static TMenuItem &slashItem(const char *command)
     for (size_t i = 0; i < std::size(claudeCommands); ++i)
         if (strcmp(claudeCommands[i].command, command) == 0)
             return *new TMenuItem(claudeCommands[i].label, ushort(cmClaude0 + i),
-                                  kbNoKey, hcNoContext, command);
+                                  kbNoKey);
     abort();
 }
 
@@ -121,40 +139,46 @@ static std::string baseName(const std::string &path)
 static std::string clipText(const std::string &s, size_t width);
 
 // ---------------------------------------------------------------------------
-// Exact VGA colors. Turbo Vision's palette names the 16 text-mode colors by
-// index, which each terminal paints from its own palette (often not the DOS
-// one). Converting them to RGB makes the desktop look the same everywhere.
+// Colors. Turbo Vision's palette names the 16 text-mode colors by index,
+// which each terminal paints from its own palette (often not the DOS one).
+// The current theme turns them into exact RGB (theme.cc), so the desktop
+// looks the same everywhere.
 
-static TColorRGB vgaColor(int i)
-{
-    static const TColorRGB vga[16] =
-    {
-        {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
-        {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
-        {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
-        {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF},
-    };
-    return vga[i & 0xF];
-}
-
-// A text-mode attribute byte (background in the high nibble) as exact RGB.
 static TColorAttr vgaAttr(uchar bios)
 {
-    return TColorAttr(vgaColor(bios & 0xF), vgaColor(bios >> 4));
+    return themeAttr(bios);
 }
 
 TPalette &TVTermApp::getPalette() const
 {
     if (appPalette != apColor)
         return TApplication::getPalette();
-    static TPalette rgb = [] {
-        static const char bios[] = cpAppColor;
-        enum { n = sizeof(bios) - 1 };
-        static TColorAttr attrs[n];
+    static const char bios[] = cpAppColor;
+    enum { n = sizeof(bios) - 1 };
+    static TColorAttr attrs[n];
+    static TPalette rgb(attrs, (ushort) n);
+    static size_t built = (size_t) -1;
+    if (built != currentThemeIndex())
+    {
+        built = currentThemeIndex();
+        const Theme &t = currentTheme();
         for (int i = 0; i < n; ++i)
-            attrs[i] = vgaAttr((uchar) bios[i]);
-        return TPalette(attrs, (ushort) n);
-    }();
+            attrs[i] = themeAttr((uchar) bios[i]);
+        if (!t.vga)
+        {
+            auto color = [] (unsigned c) {
+                return TColorRGB(c >> 16, (c >> 8) & 0xFF, c & 0xFF);
+            };
+            // The desktop's own color.
+            attrs[0] = TColorAttr(color(t.deskFg), color(t.desk));
+            // Button shadows in the gray, blue and cyan dialogs are drawn
+            // in "black", which the theme turns into text color: use the
+            // shadow color instead.
+            for (int i : {45, 77, 109})
+                attrs[i] = TColorAttr(color(t.shadow), attrs[i].getBackground());
+        }
+        rgb = TPalette(attrs, (ushort) n);
+    }
     return rgb;
 }
 
@@ -197,7 +221,7 @@ public:
             std::string ws = "\xE2\x96\xA0 " + clipText(workspace, 16);  // ■
             if (workspaceCount > 1)
                 ws += " (" + std::to_string(workspaceCount) + ")";
-            left += b.moveStr(left, ws.c_str(), vgaAttr(0x71)) + 2;
+            left += b.moveStr(left, ws.c_str(), vgaAttr(currentTheme().vga ? 0x71 : 0x70)) + 2;
         }
 
         int width = 0;
@@ -312,11 +336,6 @@ int main(int argc, char **argv)
     if (!noDtach)
         execUnderDtach(argc, argv);
     unsetenv("TVCLAUDE_NO_DTACH");   // Not passed on to the sessions.
-    // Turbo look inside the session windows: yellow on dark blue, and the
-    // matching Claude Code theme.
-    tvterm::setDefaultColors(TColorRGB(0xFF, 0xFF, 0x55), TColorRGB(0x00, 0x00, 0x80));
-    installClaudeTheme();
-
     TVTermApp app(dirs);
     app.run();
     app.shutDown();
@@ -394,6 +413,11 @@ TVTermApp::TVTermApp(const std::vector<std::string> &dirs) :
     if (!underDtach())
         disableCommand(cmDetach);
     loadOptions();
+    // The saved theme, else the classic one: the session windows' colors
+    // and the Claude Code theme are set before any session starts.
+    if (!selectTheme(themeId))
+        selectTheme((size_t) 0);
+    themeChanged();
 
     // Make room for the session counter at the right of the menu bar.
     enum { indicatorWidth = 36 };
@@ -453,6 +477,73 @@ public:
     }
 };
 
+// Options > Theme: Retro and Modern submenus, one entry per theme; the
+// current one is ticked.
+static std::vector<TMenuItem *> themeItems;
+
+static std::string themeItemName(size_t i)
+{
+    return std::string(i == currentThemeIndex() ? "\xE2\x88\x9A " : "  ") + themes[i].name;
+}
+
+static TMenu *themeMenu()
+{
+    themeItems.assign(themeCount, nullptr);
+    TMenuItem *groups[2] = {nullptr, nullptr};
+    for (int retro = 1; retro >= 0; --retro)
+    {
+        TMenuItem *first = nullptr, *last = nullptr;
+        for (size_t i = 0; i < themeCount; ++i)
+            if (themes[i].retro == (bool) retro)
+            {
+                auto *item = new TMenuItem(themeItemName(i).c_str(), ushort(cmTheme0 + i), kbNoKey);
+                themeItems[i] = item;
+                (last ? last->next : first) = item;
+                last = item;
+            }
+        groups[retro] = first;
+    }
+    return new TMenu(
+        *new TMenuItem("~R~etro", kbNoKey, new TMenu(*groups[1])) +
+        *new TMenuItem("~M~odern", kbNoKey, new TMenu(*groups[0])));
+}
+
+static void markThemeItems()
+{
+    for (size_t i = 0; i < themeItems.size(); ++i)
+        if (TMenuItem *item = themeItems[i])
+        {
+            delete[] (char *) item->name;
+            item->name = newStr(themeItemName(i).c_str());
+        }
+}
+
+// After a theme change: the desktop, the menu ticks, every session window's
+// contents (hidden workspaces too) and the whole screen.
+void TVTermApp::themeChanged()
+{
+    markThemeItems();
+    if (deskTop && deskTop->background)
+        deskTop->background->pattern = currentTheme().pattern;
+    for (auto *w : sessionWindows())
+        w->redrawContents();
+    // Windows keep a drawing of themselves (ofBuffered); redraw those too.
+    if (deskTop)
+        deskTop->forEach([] (TView *p, void *) {
+            if (auto *g = dynamic_cast<TGroup *>(p))
+                g->redraw();
+        }, nullptr);
+    redraw();
+}
+
+void TVTermApp::setTheme(size_t index)
+{
+    if (!selectTheme(index))
+        return;
+    themeChanged();
+    saveOptions();
+}
+
 static const char resumeMenuName[] = "~R~esume";
 static const char workspaceMenuName[] = "Wor~k~space";
 
@@ -489,18 +580,36 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             slashItem("/compact") +
             slashItem("/context") +
             slashItem("/code-review") +
+            slashItem("/tasks") +
+            newLine() +
+            slashItem("/memory") +
+            slashItem("/init") +
+            slashItem("/add-dir") +
             newLine() +
             *new TMenuItem("New Claude ~s~ession...", cmNewClaude, kbF3, hcNoContext, "F3") +
         *new TSubMenu("~O~ptions", kbAltO) +
             slashItem("/model") +
+            slashItem("/effort") +
+            slashItem("/fast") +
             slashItem("/permissions") +
+            slashItem("/output-style") +
+            newLine() +
+            slashItem("/mcp") +
+            slashItem("/agents") +
+            slashItem("/hooks") +
+            slashItem("/plugin") +
+            slashItem("/skills") +
             newLine() +
             slashItem("/config") +
             newLine() +
+            *new TMenuItem("~T~heme", kbNoKey, themeMenu()) +
             *new TMenuItem("On e~x~it...", cmExitOptions, kbNoKey) +
         *new TSubMenu("~I~nfo", kbAltI) +
             slashItem("/usage") +
             slashItem("/stats") +
+            newLine() +
+            slashItem("/doctor") +
+            slashItem("/release-notes") +
         *new TSubMenu("~W~indow", kbAltW) +
             *new TMenuItem("~T~ile", cmTileCols, kbNoKey) +
             *new TMenuItem("Tile ~r~ows", cmTileRows, kbNoKey) +
@@ -519,7 +628,10 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem("Previous workspace", cmWsPrev, kbShiftF7, hcNoContext, "Shift-F7") +
         *new TSubMenu("~H~elp", kbAltH) +
             *new TMenuItem("~A~bout...", cmAbout, kbNoKey) +
-            slashItem("/status")
+            newLine() +
+            slashItem("/status") +
+            slashItem("/help") +
+            slashItem("/feedback")
         );
 }
 
@@ -693,6 +805,9 @@ void TVTermApp::handleEvent(TEvent &event)
                     else if ( event.message.command >= cmClaude0 &&
                               event.message.command < cmClaude0 + std::size(claudeCommands) )
                         sendToClaude(claudeCommands[event.message.command - cmClaude0].command);
+                    else if ( event.message.command >= cmTheme0 &&
+                              event.message.command < cmTheme0 + themeCount )
+                        setTheme(event.message.command - cmTheme0);
                     else
                         handled = false;
                     break;
@@ -1088,6 +1203,7 @@ void TVTermApp::loadOptions()
         else if (l == "exit\tquit") exitChoice = ExitChoice::Quit;
         else if (l == "exit\task") exitChoice = ExitChoice::Ask;
         else if (l.rfind("attachdir\t", 0) == 0) attachDir = l.substr(10);
+        else if (l.rfind("theme\t", 0) == 0) themeId = l.substr(6);
     }
     fclose(f);
 }
@@ -1103,6 +1219,7 @@ void TVTermApp::saveOptions()
         fprintf(f, "# tvclaude options\nexit\t%s\n", names[(int) exitChoice]);
         if (!attachDir.empty())
             fprintf(f, "attachdir\t%s\n", attachDir.c_str());
+        fprintf(f, "theme\t%s\n", currentTheme().id);
         fclose(f);
     }
 }

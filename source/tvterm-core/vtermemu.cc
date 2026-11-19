@@ -161,6 +161,16 @@ namespace vtermemu
     // Colors for cells that use the terminal's default foreground and
     // background (see setDefaultColors). Unset, the host terminal's own.
     static TColor defaultFg, defaultBg;
+    // RGB for the 16 ANSI colors, when set (see setAnsiColors).
+    static TColorRGB ansiColors[16];
+    static bool haveAnsiColors {false};
+
+    static TColor indexedColor(uint8_t idx)
+    {
+        if (idx < 16 && haveAnsiColors)
+            return ansiColors[idx];
+        return TColorXTerm(idx);
+    }
 
     static TColorAttr convAttr(const VTermScreenCell &cell)
     {
@@ -172,7 +182,7 @@ namespace vtermemu
         if (!VTERM_COLOR_IS_DEFAULT_FG(&vt_fg))
         {
             if (VTERM_COLOR_IS_INDEXED(&vt_fg))
-                fg = TColorXTerm(vt_fg.indexed.idx);
+                fg = indexedColor(vt_fg.indexed.idx);
             else if (VTERM_COLOR_IS_RGB(&vt_fg))
                 fg = VTermRGBtoRGB(vt_fg);
         }
@@ -180,7 +190,7 @@ namespace vtermemu
         if (!VTERM_COLOR_IS_DEFAULT_BG(&vt_bg))
         {
             if (VTERM_COLOR_IS_INDEXED(&vt_bg))
-                bg = TColorXTerm(vt_bg.indexed.idx);
+                bg = indexedColor(vt_bg.indexed.idx);
             else if (VTERM_COLOR_IS_RGB(&vt_bg))
                 bg = VTermRGBtoRGB(vt_bg);
         }
@@ -245,6 +255,14 @@ void setDefaultColors(TColor fg, TColor bg) noexcept
 {
     vtermemu::defaultFg = fg;
     vtermemu::defaultBg = bg;
+}
+
+void setAnsiColors(const TColorRGB *colors) noexcept
+{
+    vtermemu::haveAnsiColors = colors != nullptr;
+    if (colors)
+        for (int i = 0; i < 16; ++i)
+            vtermemu::ansiColors[i] = colors[i];
 }
 
 TColorAttr defaultCellAttr() noexcept
@@ -321,6 +339,10 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
 
         case TerminalEventType::PasteEnd:
             vterm_keyboard_end_paste(vt);
+            break;
+
+        case TerminalEventType::Redraw:
+            forceRedraw = true;
             break;
 
         case TerminalEventType::Mouse:
@@ -448,7 +470,8 @@ void VTermEmulator::updateSurface(TerminalSurface &surface) noexcept
     // When the scrollback or the size change, everything needs to redrawn.
     // Note that, unlike the terminal's display, the scrollback content's are
     // immutable,
-    bool needsRedraw = scrollbackAreaChanged || resized;
+    bool needsRedraw = scrollbackAreaChanged || resized || forceRedraw;
+    forceRedraw = false;
 
     if (needsRedraw)
         for (int y = 0; y < visibleScrollLines; ++y)

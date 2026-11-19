@@ -35,6 +35,7 @@ enum : ushort
     cmWsPrev,
     cmWs0 = 2210,     // ... cmWs0 + 8: Workspace > entries.
     cmClaude0 = 2300, // ... Claude > entries (see claudeCommands in app.cc).
+    cmTheme0 = 2400,  // ... Options > Theme entries (see themes in theme.cc).
 };
 
 enum : ushort

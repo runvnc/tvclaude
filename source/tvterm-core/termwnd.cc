@@ -52,6 +52,12 @@ void BasicTerminalWindow::paste(TStringView text) noexcept
         view->paste(text);
 }
 
+void BasicTerminalWindow::redrawContents() noexcept
+{
+    if (view)
+        view->redrawContents();
+}
+
 void BasicTerminalWindow::shutDown()
 {
     view = nullptr;

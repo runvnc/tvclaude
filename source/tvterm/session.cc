@@ -180,56 +180,11 @@ static const std::string &bundledPluginDir()
     return dir;
 }
 
-// The Claude Code theme every session uses: yellow text, Turbo accents.
-// Written to ~/.claude/themes/tvclaude.json (Claude Code reads themes only
-// from there); the backgrounds come from tvclaude's own window colors.
-static const char themeJson[] = R"({
-  "name": "tvclaude",
-  "base": "dark",
-  "overrides": {
-    "claude": "#FFFFFF",
-    "claudeShimmer": "#55FFFF",
-    "text": "#FFFF55",
-    "inverseText": "#000000",
-    "inactive": "#AAAAAA",
-    "inactiveShimmer": "#FFFFFF",
-    "subtle": "#5555FF",
-    "suggestion": "#55FFFF",
-    "permission": "#AAAAAA",
-    "permissionShimmer": "#FFFFFF",
-    "remember": "#FF55FF",
-    "success": "#55FF55",
-    "error": "#FF5555",
-    "warning": "#FFFFFF",
-    "warningShimmer": "#FFFF55",
-    "merged": "#FF55FF",
-    "promptBorder": "#00AAAA",
-    "promptBorderShimmer": "#55FFFF",
-    "planMode": "#55FFFF",
-    "autoAccept": "#55FF55",
-    "bashBorder": "#FF55FF",
-    "ide": "#55FFFF",
-    "diffAdded": "#006600",
-    "diffRemoved": "#880000",
-    "diffAddedDimmed": "#003300",
-    "diffRemovedDimmed": "#440000",
-    "diffAddedWord": "#00AA00",
-    "diffRemovedWord": "#AA0000",
-    "userMessageBackground": "#00AAAA",
-    "userMessageBackgroundHover": "#55FFFF",
-    "bashMessageBackgroundColor": "#AA00AA",
-    "memoryBackgroundColor": "#AA5500",
-    "selectionBg": "#00AAAA",
-    "composerSidebarBackground": "#000060",
-    "briefLabelYou": "#55FFFF",
-    "briefLabelClaude": "#FFFFFF",
-    "rate_limit_fill": "#55FFFF",
-    "rate_limit_empty": "#5555FF"
-  }
-}
-)";
-
-void installClaudeTheme()
+// The Claude Code theme every session uses ("custom:tvclaude"), written by
+// the desktop theme (see theme.cc) to ~/.claude/themes/tvclaude.json: Claude
+// Code reads themes only from there, and redraws running sessions when the
+// file changes.
+void installClaudeTheme(const std::string &json)
 {
     const char *home = getenv("HOME");
     if (!home || !*home)
@@ -249,11 +204,11 @@ void installClaudeTheme()
             current.append(buf, n);
         fclose(f);
     }
-    if (current == themeJson)
+    if (current == json)
         return;
     if (FILE *f = fopen(path.c_str(), "w"))
     {
-        fputs(themeJson, f);
+        fputs(json.c_str(), f);
         fclose(f);
     }
 }

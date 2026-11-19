@@ -51,6 +51,7 @@ public:
 
     // Sends 'text' to the terminal as a paste.
     void paste(TStringView text) noexcept;
+    void redrawContents() noexcept;
 
     static TRect viewBounds(const TRect &windowBounds);
     static TPoint viewSize(const TRect &windowBounds);

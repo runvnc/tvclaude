@@ -54,7 +54,7 @@ SessionStatus readStatus(int id);
 
 // Writes the tvclaude Claude Code theme to ~/.claude/themes when missing
 // or out of date. Sessions select it with --settings.
-void installClaudeTheme();
+void installClaudeTheme(const std::string &json);
 
 // The id of the Claude conversation session `id` is running (from its
 // SessionStart hook), for `claude --resume`; empty when unknown.

@@ -161,6 +161,13 @@ void TerminalView::handleEvent(TEvent &ev)
     }
 }
 
+void TerminalView::redrawContents() noexcept
+{
+    TerminalEvent ev;
+    ev.type = TerminalEventType::Redraw;
+    termCtrl.sendEvent(ev);
+}
+
 void TerminalView::paste(TStringView text) noexcept
 {
     TerminalEvent ev;
